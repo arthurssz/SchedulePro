@@ -521,6 +521,47 @@ def criar_painel(page: ft.Page, sair_da_conta):
             encontrados.sort(key=lambda c: c["atendimentos"], reverse=True)
         return encontrados
 
+    def estado_vazio_clientes():
+        """Centraliza mensagem e ícone mesmo em telas Android estreitas."""
+        tem_clientes = bool(clientes)
+        titulo = (
+            "Nenhum cliente encontrado"
+            if tem_clientes else "Nenhum cliente cadastrado"
+        )
+        descricao = (
+            "Tente outra busca ou ajuste os filtros."
+            if tem_clientes
+            else "Cadastre seu primeiro cliente para começar."
+        )
+        return ft.Container(
+            alignment=ft.Alignment.CENTER,
+            padding=ft.Padding.only(top=42, bottom=40, left=8, right=8),
+            content=ft.Column(
+                tight=True,
+                spacing=9,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                controls=[
+                    ft.Icon(
+                        ft.Icons.PEOPLE_OUTLINE,
+                        size=37,
+                        color=TEXTO_SECUNDARIO,
+                    ),
+                    ft.Text(
+                        titulo,
+                        size=16,
+                        weight=ft.FontWeight.BOLD,
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                    ft.Text(
+                        descricao,
+                        size=12,
+                        color=TEXTO_SECUNDARIO,
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                ],
+            ),
+        )
+
     def atualizar_lista_clientes():
         lista = clientes_lista["controle"]
         if lista is None:
@@ -529,34 +570,7 @@ def criar_painel(page: ft.Page, sair_da_conta):
         exibidos = encontrados[:clientes_estado["limite"]]
         controles = []
         if not encontrados:
-            controles.append(
-                ft.Container(
-                    padding=ft.Padding.only(top=32, bottom=32),
-                    content=ft.Column(
-                        spacing=10,
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        controls=[
-                            ft.Icon(
-                                ft.Icons.PEOPLE_OUTLINE,
-                                size=34,
-                                color=TEXTO_SECUNDARIO,
-                            ),
-                            ft.Text(
-                                "Nenhum cliente encontrado",
-                                size=16,
-                                weight=ft.FontWeight.BOLD,
-                            ),
-                            ft.Text(
-                                "Cadastre seu primeiro cliente ou "
-                                "ajuste os filtros.",
-                                size=12,
-                                color=TEXTO_SECUNDARIO,
-                                text_align=ft.TextAlign.CENTER,
-                            ),
-                        ],
-                    ),
-                )
-            )
+            controles.append(estado_vazio_clientes())
         for cliente in exibidos:
             nome = cliente["nome"]
             identificador = cliente["id"]
@@ -634,37 +648,8 @@ def criar_painel(page: ft.Page, sair_da_conta):
         lista = ft.Column(spacing=0, tight=True)
         clientes_lista["controle"] = lista
         encontrados = clientes_visiveis()
-        # Inicializa a lista imediatamente, sem exigir criação de registros.
-        resultados = []
-        if not encontrados:
-            resultados = [
-                ft.Container(
-                    padding=ft.Padding.only(top=32, bottom=32),
-                    content=ft.Column(
-                        spacing=10,
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        controls=[
-                            ft.Icon(
-                                ft.Icons.PEOPLE_OUTLINE,
-                                size=34,
-                                color=TEXTO_SECUNDARIO,
-                            ),
-                            ft.Text(
-                                "Nenhum cliente encontrado",
-                                size=16,
-                                weight=ft.FontWeight.BOLD,
-                            ),
-                            ft.Text(
-                                "Cadastre seu primeiro cliente ou ajuste os filtros.",
-                                size=12,
-                                color=TEXTO_SECUNDARIO,
-                                text_align=ft.TextAlign.CENTER,
-                            ),
-                        ],
-                    ),
-                )
-            ]
-        lista.controls = resultados
+        # O contêiner vazio usa a mesma centralização do filtro de busca.
+        lista.controls = [estado_vazio_clientes()] if not encontrados else []
         return [
             ft.Row(
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -685,24 +670,76 @@ def criar_painel(page: ft.Page, sair_da_conta):
             ),
             busca,
             ft.Row(
-                spacing=6,
-                scroll=ft.ScrollMode.AUTO,
+                spacing=7,
+                run_spacing=6,
+                wrap=True,
                 controls=[
-                    ft.Button(
-                        titulo,
-                        bgcolor=(
-                            "#EAEAEA" if clientes_estado["filtro"] == titulo
-                            else CARTAO
+                    *[
+                        ft.Button(
+                            titulo,
+                            bgcolor=(
+                                "#EAEAEA"
+                                if clientes_estado["filtro"] == titulo
+                                else CARTAO
+                            ),
+                            color=(
+                                "#181818"
+                                if clientes_estado["filtro"] == titulo
+                                else "#D0D0D0"
+                            ),
+                            on_click=lambda _, filtro=titulo:
+                                selecionar_filtro_cliente(filtro),
+                        )
+                        for titulo in ("Ativos", "Arquivados")
+                    ],
+                    ft.PopupMenuButton(
+                        bgcolor="#242424",
+                        content=ft.Container(
+                            bgcolor=(
+                                "#EAEAEA"
+                                if clientes_estado["filtro"] not in
+                                ("Ativos", "Arquivados") else CARTAO
+                            ),
+                            border_radius=22,
+                            padding=ft.Padding.symmetric(
+                                horizontal=12, vertical=10
+                            ),
+                            content=ft.Row(
+                                spacing=3,
+                                tight=True,
+                                controls=[
+                                    ft.Text(
+                                        (
+                                            clientes_estado["filtro"]
+                                            if clientes_estado["filtro"] not in
+                                            ("Ativos", "Arquivados")
+                                            else "Mais filtros"
+                                        ),
+                                        size=12,
+                                        color=(
+                                            "#181818"
+                                            if clientes_estado["filtro"] not in
+                                            ("Ativos", "Arquivados")
+                                            else "#D0D0D0"
+                                        ),
+                                    ),
+                                    ft.Icon(
+                                        ft.Icons.ARROW_DROP_DOWN,
+                                        size=16,
+                                        color="#777777",
+                                    ),
+                                ],
+                            ),
                         ),
-                        color=(
-                            "#181818" if clientes_estado["filtro"] == titulo
-                            else "#D0D0D0"
-                        ),
-                        on_click=lambda _, filtro=titulo: selecionar_filtro_cliente(
-                            filtro
-                        ),
-                    )
-                    for titulo in FILTROS_CLIENTES
+                        items=[
+                            ft.PopupMenuItem(
+                                content=titulo,
+                                on_click=lambda _, filtro=titulo:
+                                    selecionar_filtro_cliente(filtro),
+                            )
+                            for titulo in FILTROS_CLIENTES
+                        ],
+                    ),
                 ],
             ),
             ft.Row(
@@ -735,7 +772,8 @@ def criar_painel(page: ft.Page, sair_da_conta):
                     ),
                     ft.Container(expand=True),
                     ft.Text(
-                        f"{len(encontrados)} clientes",
+                        f"{len(encontrados)} " +
+                        ("cliente" if len(encontrados) == 1 else "clientes"),
                         size=12,
                         color=TEXTO_SECUNDARIO,
                     ),
@@ -760,14 +798,38 @@ def criar_painel(page: ft.Page, sair_da_conta):
             label="Nome *",
             value=cliente["nome"] if cliente else "",
             autofocus=True,
+            dense=True,
+            text_size=14,
+            bgcolor=CARTAO,
+            border_color="#393939",
+            focused_border_color="#BDBDBD",
+            border_radius=10,
+            content_padding=ft.Padding.symmetric(horizontal=14, vertical=12),
         )
         telefone = ft.TextField(
-            label="Telefone (opcional)",
+            label="Telefone com DDD (opcional)",
+            hint_text="(11) 99999-9999",
+            keyboard_type=ft.KeyboardType.PHONE,
             value=cliente["telefone"] if cliente else "",
+            dense=True,
+            text_size=14,
+            bgcolor=CARTAO,
+            border_color="#393939",
+            focused_border_color="#BDBDBD",
+            border_radius=10,
+            content_padding=ft.Padding.symmetric(horizontal=14, vertical=12),
         )
         email = ft.TextField(
             label="E-mail (opcional)",
+            keyboard_type=ft.KeyboardType.EMAIL,
             value=cliente["email"] if cliente else "",
+            dense=True,
+            text_size=14,
+            bgcolor=CARTAO,
+            border_color="#393939",
+            focused_border_color="#BDBDBD",
+            border_radius=10,
+            content_padding=ft.Padding.symmetric(horizontal=14, vertical=12),
         )
         observacoes = ft.TextField(
             label="Observações (opcional)",
@@ -775,12 +837,35 @@ def criar_painel(page: ft.Page, sair_da_conta):
             min_lines=2,
             max_lines=3,
             value=cliente["observacoes"] if cliente else "",
+            dense=True,
+            text_size=14,
+            bgcolor=CARTAO,
+            border_color="#393939",
+            focused_border_color="#BDBDBD",
+            border_radius=10,
+            content_padding=ft.Padding.symmetric(horizontal=14, vertical=11),
         )
         erro = ft.Text("", color="#F0B5B5", size=12)
 
         def salvar(evento):
             novo_nome = (nome.value or "").strip()
             novo_telefone = (telefone.value or "").strip()
+            digitos = "".join(c for c in novo_telefone if c.isdigit())
+            # Aceita código brasileiro +55 quando informado.
+            if digitos.startswith("55") and len(digitos) in (12, 13):
+                digitos = digitos[2:]
+            if digitos and len(digitos) not in (10, 11):
+                erro.value = "Telefone deve ter DDD e 10 ou 11 dígitos."
+                page.update()
+                return
+            if digitos:
+                ddd, numero = digitos[:2], digitos[2:]
+                separador = 5 if len(numero) == 9 else 4
+                novo_telefone = (
+                    f"({ddd}) {numero[:separador]}-{numero[separador:]}"
+                )
+            else:
+                novo_telefone = ""
             novo_email = (email.value or "").strip()
             if not novo_nome:
                 erro.value = "Informe o nome do cliente."
@@ -846,14 +931,14 @@ def criar_painel(page: ft.Page, sair_da_conta):
                 show_drag_handle=True,
                 bgcolor=FUNDO,
                 content=ft.Container(
-                    padding=20,
+                    padding=16,
                     content=ft.Column(
                         tight=True,
-                        spacing=14,
+                        spacing=10,
                         controls=[
                             ft.Text(
                                 "Editar cliente" if cliente else "Novo cliente",
-                                size=23,
+                                size=21,
                                 weight=ft.FontWeight.BOLD,
                             ),
                             ft.Text(
@@ -872,6 +957,7 @@ def criar_painel(page: ft.Page, sair_da_conta):
                                 controls=[
                                     ft.TextButton(
                                         "Cancelar",
+                                        color="#D0D0D0",
                                         on_click=lambda _: page.pop_dialog(),
                                     ),
                                     ft.Button(
@@ -914,16 +1000,19 @@ def criar_painel(page: ft.Page, sair_da_conta):
                     modal=True,
                     title=ft.Text("Excluir cadastro de demonstração?"),
                     content=ft.Text(
-                        "Esta ação remove definitivamente o registro "
-                        "temporário desta sessão."
+                        "Esta ação apaga definitivamente este cadastro "
+                        "temporário. Deseja continuar?"
                     ),
                     actions=[
                         ft.TextButton(
                             "Cancelar",
+                            color="#D0D0D0",
                             on_click=lambda _: page.pop_dialog(),
                         ),
-                        ft.TextButton(
+                        ft.Button(
                             "Excluir",
+                            bgcolor="#3D2424",
+                            color="#F3DADA",
                             on_click=remover_cliente,
                         ),
                     ],
@@ -936,79 +1025,197 @@ def criar_painel(page: ft.Page, sair_da_conta):
             renderizar(2)
             mostrar_aviso("Cadastro de demonstração excluído.")
 
+        def linha_contato(icone, legenda, valor):
+            return ft.Row(
+                spacing=11,
+                controls=[
+                    ft.Icon(icone, size=19, color="#AFAFAF"),
+                    ft.Column(
+                        tight=True,
+                        expand=True,
+                        spacing=2,
+                        controls=[
+                            ft.Text(
+                                legenda,
+                                size=11,
+                                color=TEXTO_SECUNDARIO,
+                            ),
+                            ft.Text(
+                                valor or "Não informado",
+                                size=14,
+                            ),
+                        ],
+                    ),
+                ],
+            )
+
+        def pequeno_indicador(rotulo, valor):
+            return ft.Container(
+                expand=True,
+                padding=12,
+                bgcolor=CARTAO,
+                border_radius=12,
+                content=ft.Column(
+                    spacing=6,
+                    tight=True,
+                    controls=[
+                        ft.Text(
+                            valor,
+                            size=19,
+                            weight=ft.FontWeight.BOLD,
+                        ),
+                        ft.Text(
+                            rotulo,
+                            size=11,
+                            color=TEXTO_SECUNDARIO,
+                        ),
+                    ],
+                ),
+            )
+
+        cabecalho_cliente = ft.Row(
+            spacing=14,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            controls=[
+                ft.Container(
+                    width=62,
+                    height=62,
+                    border_radius=32,
+                    bgcolor="#303030",
+                    alignment=ft.Alignment.CENTER,
+                    content=ft.Text(
+                        iniciais_cliente(cliente["nome"]),
+                        size=21,
+                        weight=ft.FontWeight.BOLD,
+                    ),
+                ),
+                ft.Column(
+                    expand=True,
+                    spacing=5,
+                    tight=True,
+                    controls=[
+                        ft.Text(
+                            cliente["nome"],
+                            size=23,
+                            weight=ft.FontWeight.BOLD,
+                        ),
+                        ft.Text(
+                            "Arquivado" if cliente["arquivado"] else "Cliente ativo",
+                            size=12,
+                            color=TEXTO_SECUNDARIO,
+                        ),
+                    ],
+                ),
+                ft.PopupMenuButton(
+                    icon=ft.Icons.MORE_HORIZ,
+                    icon_color="#D0D0D0",
+                    tooltip="Mais opções",
+                    items=[
+                        ft.PopupMenuItem(
+                            content=(
+                                "Reativar"
+                                if cliente["arquivado"] else "Arquivar"
+                            ),
+                            on_click=acao_arquivar,
+                        ),
+                        ft.PopupMenuItem(
+                            content="Excluir",
+                            on_click=confirmar_exclusao,
+                        ),
+                    ],
+                ),
+            ],
+        )
+
         controles = [
-            ft.Text(
-                cliente["nome"],
-                size=23,
-                weight=ft.FontWeight.BOLD,
-            ),
-            ft.Text(
-                "Telefone: " + (cliente["telefone"] or "Não informado"),
-                size=13,
-            ),
-            ft.Text(
-                "E-mail: " + (cliente["email"] or "Não informado"),
-                size=13,
-            ),
-            ft.Text(
-                "Atendimentos concluídos: 0",
-                size=13,
-            ),
-            ft.Text(
-                "Próxima reserva: nenhuma",
-                size=13,
-                color=TEXTO_SECUNDARIO,
-            ),
-            ft.Text(
-                "Último atendimento: nenhum",
-                size=13,
-                color=TEXTO_SECUNDARIO,
-            ),
-            ft.Text(
-                "Observações: " + (cliente["observacoes"] or "Nenhuma"),
-                size=13,
-                color=TEXTO_SECUNDARIO,
-            ),
-            ft.Divider(color="#303030"),
-            ft.Button(
-                "Novo agendamento",
-                icon=ft.Icons.ADD,
-                on_click=agendamento_indisponivel,
-            ),
-            ft.Button(
-                "Ficha completa",
-                icon=ft.Icons.HISTORY,
-                on_click=lambda _: mostrar_aviso(
-                    "O histórico cronológico estará disponível "
-                    "quando os agendamentos reais estiverem conectados."
+            cabecalho_cliente,
+            ft.Container(
+                bgcolor=CARTAO,
+                border_radius=13,
+                padding=14,
+                content=ft.Column(
+                    tight=True,
+                    spacing=14,
+                    controls=[
+                        linha_contato(
+                            ft.Icons.PHONE_OUTLINED,
+                            "Telefone",
+                            cliente["telefone"],
+                        ),
+                        ft.Divider(height=1, color="#363636"),
+                        linha_contato(
+                            ft.Icons.MAIL_OUTLINE,
+                            "E-mail",
+                            cliente["email"],
+                        ),
+                    ],
                 ),
             ),
             ft.Row(
+                spacing=9,
                 controls=[
-                    ft.TextButton(
-                        "Telefone",
-                        on_click=lambda _: mostrar_aviso(
-                            "Contato telefônico disponível após "
-                            "a integração dos clientes reais."
-                        ),
+                    pequeno_indicador(
+                        "Concluídos",
+                        str(cliente["atendimentos"]),
                     ),
-                    ft.TextButton(
+                    pequeno_indicador("Próxima reserva", "—"),
+                    pequeno_indicador("Último atendimento", "—"),
+                ],
+            ),
+            ft.Container(
+                bgcolor=CARTAO,
+                border_radius=13,
+                padding=14,
+                content=ft.Column(
+                    tight=True,
+                    spacing=6,
+                    controls=[
+                        ft.Text(
+                            "Observações",
+                            size=13,
+                            weight=ft.FontWeight.BOLD,
+                        ),
+                        ft.Text(
+                            cliente["observacoes"] or "Nenhuma observação.",
+                            size=13,
+                            color=TEXTO_SECUNDARIO,
+                        ),
+                    ],
+                ),
+            ),
+            ft.Row(
+                spacing=9,
+                controls=[
+                    ft.Button(
+                        "Novo agendamento",
+                        expand=True,
+                        icon=ft.Icons.ADD,
+                        bgcolor="#F0F0F0",
+                        color="#171717",
+                        on_click=agendamento_indisponivel,
+                    ),
+                    ft.Button(
                         "Editar",
+                        expand=True,
+                        icon=ft.Icons.EDIT_OUTLINED,
+                        bgcolor="#292929",
+                        color="#E2E2E2",
                         on_click=acao_editar,
                     ),
                 ],
             ),
-            ft.Row(
-                controls=[
-                    ft.TextButton(
-                        "Reativar" if cliente["arquivado"] else "Arquivar",
-                        on_click=acao_arquivar,
-                    ),
-                    ft.TextButton(
-                        "Excluir",
-                        on_click=confirmar_exclusao,
-                    ),
-                ],
+            ft.TextButton(
+                "Ver histórico completo",
+                color="#D0D0D0",
+                on_click=lambda _: mostrar_aviso(
+                    "O histórico de atendimentos será exibido "
+                    "quando conectarmos a agenda ao Supabase."
+                ),
+            ),
+            ft.Text(
+                "PRÉVIA: informações de teste não são persistidas.",
+                size=11,
+                color=TEXTO_SECUNDARIO,
             ),
         ]
         page.show_dialog(
@@ -1017,9 +1224,9 @@ def criar_painel(page: ft.Page, sair_da_conta):
                 show_drag_handle=True,
                 bgcolor=FUNDO,
                 content=ft.Container(
-                    padding=20,
+                    padding=16,
                     content=ft.Column(
-                        spacing=12,
+                        spacing=13,
                         tight=True,
                         controls=controles,
                     ),
