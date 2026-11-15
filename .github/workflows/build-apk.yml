@@ -12,6 +12,9 @@ jobs:
       - name: Baixar codigo
         uses: actions/checkout@v6
 
+      - name: Validar sintaxe Python
+        run: python3 -m compileall -q src
+
       - name: Compilar APK
         id: build
         uses: flet-dev/flet-build-action@v1
