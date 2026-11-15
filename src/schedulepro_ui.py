@@ -439,6 +439,594 @@ def criar_painel(page: ft.Page, sair_da_conta):
             ],
         )
 
+    # Dados de demonstração mantidos somente em memória nesta sessão.
+    # Não são compartilhados com o Supabase ou persistidos no navegador.
+    clientes = []
+    clientes_estado = {
+        "pesquisa": "",
+        "filtro": "Ativos",
+        "ordenacao": "A–Z",
+        "limite": 20,
+        "proximo_id": 1,
+    }
+    clientes_lista = {"controle": None}
+    FILTROS_CLIENTES = (
+        "Ativos",
+        "Arquivados",
+        "Agendamento futuro",
+        "Sem histórico",
+    )
+    ORDENACOES_CLIENTES = (
+        "A–Z",
+        "Z–A",
+        "Cadastro recente",
+        "Última atividade",
+        "Mais atendimentos",
+    )
+
+    def iniciais_cliente(nome: str) -> str:
+        partes = nome.split()
+        if not partes:
+            return "?"
+        if len(partes) == 1:
+            return partes[0][:2].upper()
+        return (partes[0][0] + partes[-1][0]).upper()
+
+    def selecionar_filtro_cliente(nome: str):
+        clientes_estado["filtro"] = nome
+        clientes_estado["limite"] = 20
+        renderizar(2)
+
+    def selecionar_ordenacao_cliente(nome: str):
+        clientes_estado["ordenacao"] = nome
+        clientes_estado["limite"] = 20
+        renderizar(2)
+
+    def pesquisar_cliente(evento):
+        clientes_estado["pesquisa"] = evento.control.value or ""
+        clientes_estado["limite"] = 20
+        atualizar_lista_clientes()
+
+    def clientes_visiveis():
+        termo = clientes_estado["pesquisa"].strip().casefold()
+        filtro = clientes_estado["filtro"]
+        encontrados = []
+        for cliente in clientes:
+            if filtro == "Ativos" and cliente["arquivado"]:
+                continue
+            if filtro == "Arquivados" and not cliente["arquivado"]:
+                continue
+            if filtro == "Agendamento futuro":
+                continue  # Agenda real ainda não foi conectada.
+            if filtro == "Sem histórico" and cliente["atendimentos"] > 0:
+                continue
+            campos = (
+                cliente["nome"],
+                cliente["telefone"],
+                cliente["email"],
+            )
+            if termo and not any(termo in valor.casefold() for valor in campos):
+                continue
+            encontrados.append(cliente)
+        ordem = clientes_estado["ordenacao"]
+        if ordem == "A–Z":
+            encontrados.sort(key=lambda c: c["nome"].casefold())
+        elif ordem == "Z–A":
+            encontrados.sort(key=lambda c: c["nome"].casefold(), reverse=True)
+        elif ordem == "Cadastro recente":
+            encontrados.sort(key=lambda c: c["id"], reverse=True)
+        elif ordem == "Última atividade":
+            encontrados.sort(key=lambda c: c["ultima_atividade"], reverse=True)
+        elif ordem == "Mais atendimentos":
+            encontrados.sort(key=lambda c: c["atendimentos"], reverse=True)
+        return encontrados
+
+    def atualizar_lista_clientes():
+        lista = clientes_lista["controle"]
+        if lista is None:
+            return
+        encontrados = clientes_visiveis()
+        exibidos = encontrados[:clientes_estado["limite"]]
+        controles = []
+        if not encontrados:
+            controles.append(
+                ft.Container(
+                    padding=ft.Padding.only(top=32, bottom=32),
+                    content=ft.Column(
+                        spacing=10,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        controls=[
+                            ft.Icon(
+                                ft.Icons.PEOPLE_OUTLINE,
+                                size=34,
+                                color=TEXTO_SECUNDARIO,
+                            ),
+                            ft.Text(
+                                "Nenhum cliente encontrado",
+                                size=16,
+                                weight=ft.FontWeight.BOLD,
+                            ),
+                            ft.Text(
+                                "Cadastre seu primeiro cliente ou "
+                                "ajuste os filtros.",
+                                size=12,
+                                color=TEXTO_SECUNDARIO,
+                                text_align=ft.TextAlign.CENTER,
+                            ),
+                        ],
+                    ),
+                )
+            )
+        for cliente in exibidos:
+            nome = cliente["nome"]
+            identificador = cliente["id"]
+            subtitulo = cliente["telefone"] or cliente["email"] or "Sem contato"
+            controles.append(
+                ft.Container(
+                    padding=ft.Padding.symmetric(vertical=10, horizontal=4),
+                    on_click=lambda _, cid=identificador: abrir_detalhes_cliente(cid),
+                    content=ft.Row(
+                        spacing=12,
+                        controls=[
+                            ft.Container(
+                                width=38,
+                                height=38,
+                                alignment=ft.Alignment.CENTER,
+                                bgcolor="#272727",
+                                border_radius=20,
+                                content=ft.Text(
+                                    iniciais_cliente(nome),
+                                    size=12,
+                                    weight=ft.FontWeight.BOLD,
+                                ),
+                            ),
+                            ft.Column(
+                                expand=True,
+                                spacing=2,
+                                tight=True,
+                                controls=[
+                                    ft.Text(
+                                        nome,
+                                        size=14,
+                                        weight=ft.FontWeight.W_500,
+                                    ),
+                                    ft.Text(
+                                        subtitulo,
+                                        size=12,
+                                        color=TEXTO_SECUNDARIO,
+                                    ),
+                                ],
+                            ),
+                            ft.Icon(
+                                ft.Icons.CHEVRON_RIGHT,
+                                size=17,
+                                color=TEXTO_SECUNDARIO,
+                            ),
+                        ],
+                    ),
+                )
+            )
+            controles.append(ft.Divider(height=1, color="#2C2C2C"))
+        if len(encontrados) > clientes_estado["limite"]:
+            controles.append(
+                ft.TextButton(
+                    "Mostrar mais 20",
+                    on_click=mostrar_mais_clientes,
+                )
+            )
+        lista.controls = controles
+        page.update()
+
+    def mostrar_mais_clientes(evento):
+        clientes_estado["limite"] += 20
+        atualizar_lista_clientes()
+
+    def criar_clientes_ui():
+        busca = ft.TextField(
+            value=clientes_estado["pesquisa"],
+            hint_text="Buscar nome, telefone ou e-mail",
+            prefix_icon=ft.Icons.SEARCH,
+            bgcolor=CARTAO,
+            border_color="#333333",
+            text_size=14,
+            on_change=pesquisar_cliente,
+        )
+        lista = ft.Column(spacing=0, tight=True)
+        clientes_lista["controle"] = lista
+        encontrados = clientes_visiveis()
+        # Inicializa a lista imediatamente, sem exigir criação de registros.
+        resultados = []
+        if not encontrados:
+            resultados = [
+                ft.Container(
+                    padding=ft.Padding.only(top=32, bottom=32),
+                    content=ft.Column(
+                        spacing=10,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        controls=[
+                            ft.Icon(
+                                ft.Icons.PEOPLE_OUTLINE,
+                                size=34,
+                                color=TEXTO_SECUNDARIO,
+                            ),
+                            ft.Text(
+                                "Nenhum cliente encontrado",
+                                size=16,
+                                weight=ft.FontWeight.BOLD,
+                            ),
+                            ft.Text(
+                                "Cadastre seu primeiro cliente ou ajuste os filtros.",
+                                size=12,
+                                color=TEXTO_SECUNDARIO,
+                                text_align=ft.TextAlign.CENTER,
+                            ),
+                        ],
+                    ),
+                )
+            ]
+        lista.controls = resultados
+        return [
+            ft.Row(
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                controls=[
+                    ft.Text(
+                        "Clientes",
+                        size=26,
+                        weight=ft.FontWeight.BOLD,
+                    ),
+                    ft.Button(
+                        "Novo cliente",
+                        icon=ft.Icons.ADD,
+                        bgcolor="#F0F0F0",
+                        color="#161616",
+                        on_click=lambda _: abrir_form_cliente(),
+                    ),
+                ],
+            ),
+            busca,
+            ft.Row(
+                spacing=6,
+                scroll=ft.ScrollMode.AUTO,
+                controls=[
+                    ft.Button(
+                        titulo,
+                        bgcolor=(
+                            "#EAEAEA" if clientes_estado["filtro"] == titulo
+                            else CARTAO
+                        ),
+                        color=(
+                            "#181818" if clientes_estado["filtro"] == titulo
+                            else "#D0D0D0"
+                        ),
+                        on_click=lambda _, filtro=titulo: selecionar_filtro_cliente(
+                            filtro
+                        ),
+                    )
+                    for titulo in FILTROS_CLIENTES
+                ],
+            ),
+            ft.Row(
+                spacing=5,
+                controls=[
+                    ft.Text(
+                        "Ordenar:",
+                        size=13,
+                        color=TEXTO_SECUNDARIO,
+                    ),
+                    ft.PopupMenuButton(
+                        content=ft.Row(
+                            spacing=4,
+                            controls=[
+                                ft.Text(
+                                    clientes_estado["ordenacao"],
+                                    size=13,
+                                ),
+                                ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=19),
+                            ],
+                        ),
+                        items=[
+                            ft.PopupMenuItem(
+                                content=ordenacao,
+                                on_click=lambda _, escolhida=ordenacao:
+                                    selecionar_ordenacao_cliente(escolhida),
+                            )
+                            for ordenacao in ORDENACOES_CLIENTES
+                        ],
+                    ),
+                    ft.Container(expand=True),
+                    ft.Text(
+                        f"{len(encontrados)} clientes",
+                        size=12,
+                        color=TEXTO_SECUNDARIO,
+                    ),
+                ],
+            ),
+            ft.Divider(height=2, color="#2A2A2A"),
+            lista,
+            ft.Text(
+                "PRÉVIA: cadastros temporários, não salvos. "
+                "Não utilize dados reais de clientes.",
+                size=11,
+                color=TEXTO_SECUNDARIO,
+            ),
+        ]
+
+    def buscar_cliente_por_id(cid):
+        return next((c for c in clientes if c["id"] == cid), None)
+
+    def abrir_form_cliente(cliente_id=None):
+        cliente = buscar_cliente_por_id(cliente_id) if cliente_id else None
+        nome = ft.TextField(
+            label="Nome *",
+            value=cliente["nome"] if cliente else "",
+            autofocus=True,
+        )
+        telefone = ft.TextField(
+            label="Telefone (opcional)",
+            value=cliente["telefone"] if cliente else "",
+        )
+        email = ft.TextField(
+            label="E-mail (opcional)",
+            value=cliente["email"] if cliente else "",
+        )
+        observacoes = ft.TextField(
+            label="Observações (opcional)",
+            multiline=True,
+            min_lines=2,
+            max_lines=3,
+            value=cliente["observacoes"] if cliente else "",
+        )
+        erro = ft.Text("", color="#F0B5B5", size=12)
+
+        def salvar(evento):
+            novo_nome = (nome.value or "").strip()
+            novo_telefone = (telefone.value or "").strip()
+            novo_email = (email.value or "").strip()
+            if not novo_nome:
+                erro.value = "Informe o nome do cliente."
+                page.update()
+                return
+            if novo_email and (
+                "@" not in novo_email or "." not in novo_email.split("@")[-1]
+            ):
+                erro.value = "Informe um e-mail válido."
+                page.update()
+                return
+            duplicado = any(
+                outro["id"] != cliente_id
+                and (
+                    outro["nome"].casefold() == novo_nome.casefold()
+                    or (
+                        novo_email
+                        and outro["email"].casefold() == novo_email.casefold()
+                    )
+                    or (
+                        novo_telefone
+                        and outro["telefone"] == novo_telefone
+                    )
+                )
+                for outro in clientes
+            )
+            if duplicado:
+                erro.value = (
+                    "Possível cadastro duplicado. Confira nome, "
+                    "telefone ou e-mail antes de salvar."
+                )
+                page.update()
+                return
+            if cliente:
+                cliente.update(
+                    nome=novo_nome,
+                    telefone=novo_telefone,
+                    email=novo_email,
+                    observacoes=observacoes.value or "",
+                    ultima_atividade=clientes_estado["proximo_id"],
+                )
+            else:
+                identificador = clientes_estado["proximo_id"]
+                clientes.append({
+                    "id": identificador,
+                    "nome": novo_nome,
+                    "telefone": novo_telefone,
+                    "email": novo_email,
+                    "observacoes": observacoes.value or "",
+                    "arquivado": False,
+                    "atendimentos": 0,
+                    "criado_em": date.today(),
+                    "ultima_atividade": identificador,
+                })
+                clientes_estado["proximo_id"] += 1
+            page.pop_dialog()
+            renderizar(2)
+            mostrar_aviso("Cadastro temporário salvo nesta prévia.")
+
+        page.show_dialog(
+            ft.BottomSheet(
+                scrollable=True,
+                show_drag_handle=True,
+                bgcolor=FUNDO,
+                content=ft.Container(
+                    padding=20,
+                    content=ft.Column(
+                        tight=True,
+                        spacing=14,
+                        controls=[
+                            ft.Text(
+                                "Editar cliente" if cliente else "Novo cliente",
+                                size=23,
+                                weight=ft.FontWeight.BOLD,
+                            ),
+                            ft.Text(
+                                "Dados de demonstração: não serão enviados "
+                                "ao Supabase.",
+                                size=12,
+                                color=TEXTO_SECUNDARIO,
+                            ),
+                            nome,
+                            telefone,
+                            email,
+                            observacoes,
+                            erro,
+                            ft.Row(
+                                alignment=ft.MainAxisAlignment.END,
+                                controls=[
+                                    ft.TextButton(
+                                        "Cancelar",
+                                        on_click=lambda _: page.pop_dialog(),
+                                    ),
+                                    ft.Button(
+                                        "Salvar",
+                                        bgcolor="#F0F0F0",
+                                        color="#181818",
+                                        on_click=salvar,
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                ),
+            )
+        )
+
+    def abrir_detalhes_cliente(cid):
+        cliente = buscar_cliente_por_id(cid)
+        if not cliente:
+            return
+
+        def acao_editar(evento):
+            page.pop_dialog()
+            abrir_form_cliente(cid)
+
+        def acao_arquivar(evento):
+            cliente["arquivado"] = not cliente["arquivado"]
+            page.pop_dialog()
+            renderizar(2)
+            mostrar_aviso(
+                "Cliente reativado nesta prévia."
+                if not cliente["arquivado"]
+                else "Cliente arquivado nesta prévia."
+            )
+
+        def confirmar_exclusao(evento):
+            page.pop_dialog()
+            page.show_dialog(
+                ft.AlertDialog(
+                    modal=True,
+                    title=ft.Text("Excluir cadastro de demonstração?"),
+                    content=ft.Text(
+                        "Esta ação remove definitivamente o registro "
+                        "temporário desta sessão."
+                    ),
+                    actions=[
+                        ft.TextButton(
+                            "Cancelar",
+                            on_click=lambda _: page.pop_dialog(),
+                        ),
+                        ft.TextButton(
+                            "Excluir",
+                            on_click=remover_cliente,
+                        ),
+                    ],
+                )
+            )
+
+        def remover_cliente(evento):
+            clientes[:] = [c for c in clientes if c["id"] != cid]
+            page.pop_dialog()
+            renderizar(2)
+            mostrar_aviso("Cadastro de demonstração excluído.")
+
+        controles = [
+            ft.Text(
+                cliente["nome"],
+                size=23,
+                weight=ft.FontWeight.BOLD,
+            ),
+            ft.Text(
+                "Telefone: " + (cliente["telefone"] or "Não informado"),
+                size=13,
+            ),
+            ft.Text(
+                "E-mail: " + (cliente["email"] or "Não informado"),
+                size=13,
+            ),
+            ft.Text(
+                "Atendimentos concluídos: 0",
+                size=13,
+            ),
+            ft.Text(
+                "Próxima reserva: nenhuma",
+                size=13,
+                color=TEXTO_SECUNDARIO,
+            ),
+            ft.Text(
+                "Último atendimento: nenhum",
+                size=13,
+                color=TEXTO_SECUNDARIO,
+            ),
+            ft.Text(
+                "Observações: " + (cliente["observacoes"] or "Nenhuma"),
+                size=13,
+                color=TEXTO_SECUNDARIO,
+            ),
+            ft.Divider(color="#303030"),
+            ft.Button(
+                "Novo agendamento",
+                icon=ft.Icons.ADD,
+                on_click=agendamento_indisponivel,
+            ),
+            ft.Button(
+                "Ficha completa",
+                icon=ft.Icons.HISTORY,
+                on_click=lambda _: mostrar_aviso(
+                    "O histórico cronológico estará disponível "
+                    "quando os agendamentos reais estiverem conectados."
+                ),
+            ),
+            ft.Row(
+                controls=[
+                    ft.TextButton(
+                        "Telefone",
+                        on_click=lambda _: mostrar_aviso(
+                            "Contato telefônico disponível após "
+                            "a integração dos clientes reais."
+                        ),
+                    ),
+                    ft.TextButton(
+                        "Editar",
+                        on_click=acao_editar,
+                    ),
+                ],
+            ),
+            ft.Row(
+                controls=[
+                    ft.TextButton(
+                        "Reativar" if cliente["arquivado"] else "Arquivar",
+                        on_click=acao_arquivar,
+                    ),
+                    ft.TextButton(
+                        "Excluir",
+                        on_click=confirmar_exclusao,
+                    ),
+                ],
+            ),
+        ]
+        page.show_dialog(
+            ft.BottomSheet(
+                scrollable=True,
+                show_drag_handle=True,
+                bgcolor=FUNDO,
+                content=ft.Container(
+                    padding=20,
+                    content=ft.Column(
+                        spacing=12,
+                        tight=True,
+                        controls=controles,
+                    ),
+                ),
+            )
+        )
+
     def renderizar(indice: int):
         titulo = ABAS[indice][0]
         itens = [
@@ -590,12 +1178,8 @@ def criar_painel(page: ft.Page, sair_da_conta):
                 itens.pop()
                 itens.extend(criar_agenda())
             elif indice == 2:
-                itens.append(
-                    cartao(
-                        "Clientes",
-                        "Aqui você poderá consultar e cadastrar clientes.",
-                    )
-                )
+                itens.pop()
+                itens.extend(criar_clientes_ui())
             else:
                 itens.append(
                     ft.Button(
@@ -617,6 +1201,8 @@ def criar_painel(page: ft.Page, sair_da_conta):
 
         conteudo.controls = itens
         page.update()
+        if indice == 2:
+            atualizar_lista_clientes()
 
     def mudar_aba(evento):
         renderizar(evento.control.selected_index)
