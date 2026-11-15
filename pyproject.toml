@@ -16,3 +16,7 @@ copyright = "Copyright (C) 2026 SchedulePro"
 
 [tool.flet.app]
 path = "src"
+
+[tool.flet.android.deep_linking]
+scheme = "com.arthurssz.schedulepro"
+host = "auth"
