@@ -1,0 +1,15 @@
+[project]
+name = "schedulepro"
+version = "0.1.0"
+description = "Aplicativo de gestão de agendamentos para estabelecimentos."
+requires-python = ">=3.10"
+dependencies = ["flet>=1.1.0,<2"]
+
+[tool.flet]
+org = "com.arthurssz"
+product = "SchedulePro"
+company = "SchedulePro"
+copyright = "Copyright (C) 2026 SchedulePro"
+
+[tool.flet.app]
+path = "src"
