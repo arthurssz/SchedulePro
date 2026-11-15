@@ -14,6 +14,8 @@ from establishments_api import (
 from establishment_form import abrir_formulario_estabelecimento
 from hours_api import carregar_horarios, salvar_horarios
 from hours_form import abrir_formulario_horarios
+from services_api import listar_servicos, salvar_servico, alterar_atividade
+from services_form import abrir_gerenciador_servicos
 
 from auth_flow import (
     SessaoInvalida,
@@ -117,6 +119,65 @@ async def main(page: ft.Page):
 
         abrir_formulario_horarios(
             page, cadastrados, gravar, jornada_salva
+        )
+
+    async def abrir_servicos(evento=None):
+        """Gerencia o catálogo real vinculado à conta Google do negócio."""
+        token = usuario["access_token"]
+        negocio_id = estado_estabelecimento.get("id")
+        etapa = int(estado_estabelecimento.get("onboarding_step") or 1)
+        if not token or not negocio_id or not consulta_estabelecimento["ok"]:
+            page.show_dialog(
+                ft.SnackBar(
+                    content=ft.Text(
+                        "Entre com Google e cadastre seu estabelecimento."
+                    )
+                )
+            )
+            return
+        if etapa < 3:
+            page.show_dialog(
+                ft.SnackBar(
+                    content=ft.Text(
+                        "Configure os horários antes dos serviços."
+                    )
+                )
+            )
+            return
+        try:
+            itens = await asyncio.to_thread(
+                listar_servicos, token, negocio_id
+            )
+        except ErroEstabelecimento as erro:
+            page.show_dialog(ft.SnackBar(content=ft.Text(str(erro))))
+            return
+
+        async def gravar_servico(dados, identificador=None):
+            return await asyncio.to_thread(
+                salvar_servico,
+                usuario["access_token"], negocio_id,
+                dados, identificador,
+                estado_estabelecimento.get("onboarding_step", 3),
+            )
+
+        async def atualizar_status(identificador, ativo):
+            return await asyncio.to_thread(
+                alterar_atividade,
+                usuario["access_token"], negocio_id, identificador, ativo,
+            )
+
+        def servico_alterado(registro):
+            if registro.get("_etapa_avancou"):
+                etapa_atual = int(
+                    estado_estabelecimento.get("onboarding_step") or 1
+                )
+                estado_estabelecimento["onboarding_step"] = max(
+                    etapa_atual, 4
+                )
+            mostrar_painel()
+
+        abrir_gerenciador_servicos(
+            page, itens, gravar_servico, atualizar_status, servico_alterado,
         )
 
     async def entrar_no_painel():
@@ -299,6 +360,7 @@ async def main(page: ft.Page):
         abrir_estabelecimento=abrir_cadastro_estabelecimento,
         dados_estabelecimento=estado_estabelecimento,
         abrir_horarios=abrir_horarios,
+        abrir_servicos=abrir_servicos,
     )
     page.on_route_change = ao_mudar_rota
     mostrar_login()
