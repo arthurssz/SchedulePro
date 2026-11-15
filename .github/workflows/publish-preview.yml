@@ -1,0 +1,60 @@
+name: Publicar previa web do SchedulePro
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/schedulepro_ui.py'
+      - 'preview/**'
+      - '.github/workflows/publish-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: schedulepro-pages
+  cancel-in-progress: true
+
+env:
+  UV_PYTHON: '3.12'
+  FLET_CLI_NO_RICH_OUTPUT: '1'
+
+jobs:
+  publicar:
+    name: Compilar e publicar previa
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - name: Baixar repositorio
+        uses: actions/checkout@v4
+
+      - name: Preparar Python
+        uses: astral-sh/setup-uv@v6
+
+      - name: Compartilhar as telas do APK com o navegador
+        run: cp src/schedulepro_ui.py preview/src/schedulepro_ui.py
+
+      - name: Validar sintaxe Python
+        run: python3 -m compileall -q preview/src
+
+      - name: Compilar Flet para web
+        working-directory: preview
+        run: uv run flet build web --yes --base-url /SchedulePro/ --route-url-strategy hash --python-version 3.12
+
+      - name: Configurar GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Enviar site
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: preview/build/web
+
+      - name: Publicar no GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
