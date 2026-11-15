@@ -957,7 +957,6 @@ def criar_painel(page: ft.Page, sair_da_conta):
                                 controls=[
                                     ft.TextButton(
                                         "Cancelar",
-                                        color="#D0D0D0",
                                         on_click=lambda _: page.pop_dialog(),
                                     ),
                                     ft.Button(
@@ -1006,7 +1005,6 @@ def criar_painel(page: ft.Page, sair_da_conta):
                     actions=[
                         ft.TextButton(
                             "Cancelar",
-                            color="#D0D0D0",
                             on_click=lambda _: page.pop_dialog(),
                         ),
                         ft.Button(
@@ -1206,7 +1204,6 @@ def criar_painel(page: ft.Page, sair_da_conta):
             ),
             ft.TextButton(
                 "Ver histórico completo",
-                color="#D0D0D0",
                 on_click=lambda _: mostrar_aviso(
                     "O histórico de atendimentos será exibido "
                     "quando conectarmos a agenda ao Supabase."
