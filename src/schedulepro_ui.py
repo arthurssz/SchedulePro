@@ -111,10 +111,18 @@ def criar_painel(
         agenda_estado["busca"] = evento.control.value or ""
 
     def agendamento_indisponivel(evento):
-        mostrar_aviso(
-            "Antes de criar agendamentos, precisamos cadastrar "
-            "o estabelecimento, os serviços e os profissionais."
-        )
+        if dados_estabelecimento and dados_estabelecimento.get(
+            "onboarding_completed"
+        ):
+            mostrar_aviso(
+                "Estabelecimento ativado! O cadastro de agendamentos "
+                "internos será implementado na próxima fase."
+            )
+        else:
+            mostrar_aviso(
+                "Conclua as cinco etapas de configuração "
+                "do estabelecimento para continuar."
+            )
 
     def criar_agenda():
         """Agenda visual sem agendamentos fictícios nem dados públicos."""
@@ -1573,10 +1581,7 @@ def criar_painel(
                         bgcolor="#F1F1F1",
                         border_radius=14,
                         padding=13,
-                        on_click=lambda _: mostrar_aviso(
-                            "Primeiro vamos cadastrar seu estabelecimento "
-                            "para habilitar os agendamentos."
-                        ),
+                        on_click=agendamento_indisponivel,
                         content=ft.Row(
                             alignment=ft.MainAxisAlignment.CENTER,
                             controls=[
