@@ -18,6 +18,13 @@ from services_api import listar_servicos, salvar_servico, alterar_atividade
 from services_form import abrir_gerenciador_servicos
 from professionals_api import listar_profissionais, salvar_profissional
 from professionals_form import abrir_gerenciador_profissionais
+from activation_api import (
+    carregar_jornadas,
+    salvar_jornada_profissional,
+    revisar_ativacao,
+    ativar_estabelecimento,
+)
+from activation_form import abrir_revisao_estabelecimento
 
 from auth_flow import (
     SessaoInvalida,
@@ -239,6 +246,106 @@ async def main(page: ft.Page):
             page, profissionais, servicos, gravar, profissional_salvo,
         )
 
+    async def configurar_jornada_profissional(profissional_id):
+        """Jornada inicial individual compatível com o funcionamento."""
+        token = usuario["access_token"]
+        negocio_id = estado_estabelecimento.get("id")
+        if not token or not negocio_id:
+            page.show_dialog(
+                ft.SnackBar(content=ft.Text("Entre com Google novamente."))
+            )
+            return
+        try:
+            horarios_negocio, jornadas = await asyncio.gather(
+                asyncio.to_thread(carregar_horarios, token, negocio_id),
+                asyncio.to_thread(carregar_jornadas, token, negocio_id),
+            )
+        except ErroEstabelecimento as erro:
+            page.show_dialog(ft.SnackBar(content=ft.Text(str(erro))))
+            return
+
+        horarios_prof = [
+            {
+                "weekday": r["weekday"],
+                "intervals": r.get("intervals") or [],
+            }
+            for r in jornadas if r.get("professional_id") == profissional_id
+        ]
+        # Primeira abertura: sugere a jornada real do estabelecimento,
+        # mas só salva depois que o usuário confirmar.
+        if not horarios_prof:
+            horarios_prof = [
+                {"weekday": dia["weekday"],
+                 "intervals": dia.get("intervals") or []}
+                for dia in horarios_negocio
+            ]
+
+        async def gravar(semana):
+            return await asyncio.to_thread(
+                salvar_jornada_profissional,
+                usuario["access_token"],
+                negocio_id,
+                profissional_id,
+                semana,
+                horarios_negocio,
+            )
+
+        def jornada_salva():
+            mostrar_painel()
+
+        abrir_formulario_horarios(
+            page, horarios_prof, gravar, jornada_salva,
+            tipo="profissional",
+        )
+
+    async def abrir_revisao(evento=None):
+        """Revisa requisitos no servidor e libera ativação autenticada."""
+        token = usuario["access_token"]
+        negocio_id = estado_estabelecimento.get("id")
+        etapa = int(estado_estabelecimento.get("onboarding_step") or 1)
+        if not token or not negocio_id or not consulta_estabelecimento["ok"]:
+            page.show_dialog(
+                ft.SnackBar(
+                    content=ft.Text("Entre com Google para continuar.")
+                )
+            )
+            return
+        if etapa < 5:
+            page.show_dialog(
+                ft.SnackBar(
+                    content=ft.Text("Cadastre um profissional ativo primeiro.")
+                )
+            )
+            return
+        try:
+            resumo, profissionais, jornadas = await asyncio.gather(
+                asyncio.to_thread(revisar_ativacao, token, negocio_id),
+                asyncio.to_thread(
+                    listar_profissionais, token, negocio_id
+                ),
+                asyncio.to_thread(carregar_jornadas, token, negocio_id),
+            )
+        except ErroEstabelecimento as erro:
+            page.show_dialog(ft.SnackBar(content=ft.Text(str(erro))))
+            return
+
+        async def ativar():
+            return await asyncio.to_thread(
+                ativar_estabelecimento,
+                usuario["access_token"],
+                negocio_id,
+            )
+
+        def ativado(resposta):
+            estado_estabelecimento.update(resposta)
+            mostrar_painel()
+
+        abrir_revisao_estabelecimento(
+            page, resumo, profissionais, jornadas,
+            configurar_jornada_profissional,
+            ativar, ativado,
+        )
+
     async def entrar_no_painel():
         """Consulta o estabelecimento com o JWT antes de mostrar o painel."""
         consulta_estabelecimento["ok"] = False
@@ -421,6 +528,7 @@ async def main(page: ft.Page):
         abrir_horarios=abrir_horarios,
         abrir_servicos=abrir_servicos,
         abrir_profissionais=abrir_profissionais,
+        abrir_revisao=abrir_revisao,
     )
     page.on_route_change = ao_mudar_rota
     mostrar_login()
