@@ -1,0 +1,19 @@
+[project]
+name = "schedulepro-preview"
+version = "0.1.0"
+description = "Prévia visual pública do SchedulePro, sem autenticação e dados reais."
+requires-python = ">=3.12,<3.13"
+dependencies = ["flet==1.1.2"]
+
+[dependency-groups]
+dev = ["flet-cli==1.1.2", "flet-web==1.1.2"]
+
+[tool.flet]
+product = "SchedulePro — Prévia"
+
+[tool.flet.app]
+path = "src"
+
+[tool.flet.web]
+base_url = "/SchedulePro/"
+route_url_strategy = "hash"
