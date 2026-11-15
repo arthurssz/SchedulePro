@@ -6,6 +6,12 @@ from urllib.parse import parse_qs, urlsplit
 import flet as ft
 import flet_secure_storage as fss
 from schedulepro_ui import FUNDO, TEXTO_SECUNDARIO, criar_painel
+from establishments_api import (
+    ErroEstabelecimento,
+    obter_estabelecimento,
+    salvar_primeira_etapa,
+)
+from establishment_form import abrir_formulario_estabelecimento
 
 from auth_flow import (
     SessaoInvalida,
@@ -34,6 +40,63 @@ async def main(page: ft.Page):
     feedback = ft.Text("", size=13, color="#FCA5A5")
     usuario = {"email": None, "access_token": None}
     interface = {"pode_reconectar": False}
+
+    estado_estabelecimento = {}
+    consulta_estabelecimento = {"ok": False}
+
+    def abrir_cadastro_estabelecimento(evento=None):
+        """Abre o cadastro apenas com o login autenticado no APK."""
+        if not consulta_estabelecimento["ok"]:
+            page.show_dialog(
+                ft.SnackBar(
+                    content=ft.Text(
+                        "Não conseguimos verificar seus estabelecimentos. "
+                        "Confira a internet e reabra o aplicativo."
+                    )
+                )
+            )
+            return
+
+        async def salvar_dados(dados):
+            token = usuario["access_token"]
+            if not token:
+                raise ErroEstabelecimento(
+                    "Sua sessão terminou. Entre com Google novamente."
+                )
+            identificador = estado_estabelecimento.get("id")
+            return await asyncio.to_thread(
+                salvar_primeira_etapa, token, dados, identificador
+            )
+
+        def cadastro_salvo(registro):
+            estado_estabelecimento.clear()
+            estado_estabelecimento.update(registro)
+            mostrar_painel()
+
+        abrir_formulario_estabelecimento(
+            page,
+            estado_estabelecimento,
+            salvar_dados,
+            cadastro_salvo,
+        )
+
+    async def entrar_no_painel():
+        """Consulta o estabelecimento com o JWT antes de mostrar o painel."""
+        consulta_estabelecimento["ok"] = False
+        estado_estabelecimento.clear()
+        problema = None
+        try:
+            registro = await asyncio.to_thread(
+                obter_estabelecimento, usuario["access_token"]
+            )
+            if registro:
+                estado_estabelecimento.update(registro)
+            consulta_estabelecimento["ok"] = True
+        except ErroEstabelecimento as erro:
+            problema = str(erro)
+        mostrar_painel()
+        if problema:
+            page.show_dialog(ft.SnackBar(content=ft.Text(problema)))
 
     async def entrar_google(evento):
         feedback.value = "Abrindo o login do Google..."
@@ -110,7 +173,7 @@ async def main(page: ft.Page):
             usuario["email"] = sessao["email"]
             usuario["access_token"] = sessao["access_token"]
             interface["pode_reconectar"] = False
-            mostrar_painel()
+            await entrar_no_painel()
         except SessaoInvalida:
             await armazenamento.remove(CHAVE_SESSAO)
             feedback.value = "Sua sessão terminou. Entre com Google novamente."
@@ -140,6 +203,8 @@ async def main(page: ft.Page):
 
         usuario["email"] = None
         usuario["access_token"] = None
+        estado_estabelecimento.clear()
+        consulta_estabelecimento["ok"] = False
         interface["pode_reconectar"] = False
         feedback.value = "Você saiu da conta neste aparelho."
         mostrar_login()
@@ -181,7 +246,7 @@ async def main(page: ft.Page):
             usuario["email"] = sessao["email"]
             usuario["access_token"] = sessao["access_token"]
             interface["pode_reconectar"] = False
-            mostrar_painel()
+            await entrar_no_painel()
         except Exception:
             feedback.value = "Erro ao validar login. Tente novamente."
             mostrar_login()
@@ -189,7 +254,12 @@ async def main(page: ft.Page):
     async def ao_mudar_rota(evento):
         await tratar_callback(page.route or "")
 
-    mostrar_painel = criar_painel(page, sair_da_conta)
+    mostrar_painel = criar_painel(
+        page,
+        sair_da_conta,
+        abrir_estabelecimento=abrir_cadastro_estabelecimento,
+        dados_estabelecimento=estado_estabelecimento,
+    )
     page.on_route_change = ao_mudar_rota
     mostrar_login()
     if (page.route or "").startswith("/callback"):
