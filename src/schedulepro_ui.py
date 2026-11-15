@@ -1281,7 +1281,7 @@ def criar_painel(
     def abrir_area_mais(nome: str):
         if nome == "Horários e bloqueios" and abrir_horarios is not None:
             if dados_estabelecimento and dados_estabelecimento.get("id"):
-                abrir_horarios()
+                page.run_task(abrir_horarios)
                 return
         mais_estado["pagina"] = nome
         renderizar(3)
