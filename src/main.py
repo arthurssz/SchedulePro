@@ -16,6 +16,8 @@ from hours_api import carregar_horarios, salvar_horarios
 from hours_form import abrir_formulario_horarios
 from services_api import listar_servicos, salvar_servico, alterar_atividade
 from services_form import abrir_gerenciador_servicos
+from professionals_api import listar_profissionais, salvar_profissional
+from professionals_form import abrir_gerenciador_profissionais
 
 from auth_flow import (
     SessaoInvalida,
@@ -178,6 +180,63 @@ async def main(page: ft.Page):
 
         abrir_gerenciador_servicos(
             page, itens, gravar_servico, atualizar_status, servico_alterado,
+        )
+
+    async def abrir_profissionais(evento=None):
+        """Abre cadastro real de profissionais e associa serviços autorizados."""
+        token = usuario["access_token"]
+        negocio_id = estado_estabelecimento.get("id")
+        etapa = int(estado_estabelecimento.get("onboarding_step") or 1)
+        if not token or not negocio_id or not consulta_estabelecimento["ok"]:
+            page.show_dialog(
+                ft.SnackBar(
+                    content=ft.Text(
+                        "Entre com Google e cadastre o estabelecimento primeiro."
+                    )
+                )
+            )
+            return
+        if etapa < 4:
+            page.show_dialog(
+                ft.SnackBar(
+                    content=ft.Text(
+                        "Cadastre pelo menos um serviço ativo antes."
+                    )
+                )
+            )
+            return
+        try:
+            profissionais, servicos = await asyncio.gather(
+                asyncio.to_thread(
+                    listar_profissionais, token, negocio_id
+                ),
+                asyncio.to_thread(
+                    listar_servicos, token, negocio_id
+                ),
+            )
+        except ErroEstabelecimento as erro:
+            page.show_dialog(ft.SnackBar(content=ft.Text(str(erro))))
+            return
+
+        async def gravar(dados, profissional_id=None):
+            return await asyncio.to_thread(
+                salvar_profissional,
+                usuario["access_token"], negocio_id,
+                dados, profissional_id,
+            )
+
+        def profissional_salvo(registro):
+            if registro.get("_etapa_avancou"):
+                etapa_atual = int(
+                    estado_estabelecimento.get("onboarding_step") or 1
+                )
+                estado_estabelecimento["onboarding_step"] = max(
+                    etapa_atual, 5
+                )
+            mostrar_painel()
+
+        abrir_gerenciador_profissionais(
+            page, profissionais, servicos, gravar, profissional_salvo,
         )
 
     async def entrar_no_painel():
@@ -361,6 +420,7 @@ async def main(page: ft.Page):
         dados_estabelecimento=estado_estabelecimento,
         abrir_horarios=abrir_horarios,
         abrir_servicos=abrir_servicos,
+        abrir_profissionais=abrir_profissionais,
     )
     page.on_route_change = ao_mudar_rota
     mostrar_login()
