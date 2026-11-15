@@ -58,6 +58,7 @@ def criar_painel(
     page: ft.Page, sair_da_conta,
     abrir_estabelecimento=None, dados_estabelecimento=None,
     abrir_horarios=None,
+    abrir_servicos=None,
 ):
     """Prepara a navegação e retorna a função que abre o painel."""
     conteudo = ft.Column(
@@ -1279,6 +1280,9 @@ def criar_painel(
     )
 
     def abrir_area_mais(nome: str):
+        if nome == "Serviços" and abrir_servicos is not None:
+            page.run_task(abrir_servicos)
+            return
         if nome == "Horários e bloqueios" and abrir_horarios is not None:
             if dados_estabelecimento and dados_estabelecimento.get("id"):
                 page.run_task(abrir_horarios)
@@ -1664,6 +1668,26 @@ def criar_painel(
                             bgcolor="#292929",
                             color="#EDEDED",
                             on_click=abrir_horarios,
+                        ),
+                    )
+                if (
+                    tem_negocio and abrir_servicos is not None
+                    and int(
+                        dados_estabelecimento.get("onboarding_step") or 1
+                    ) >= 3
+                ):
+                    proxima_etapa = int(
+                        dados_estabelecimento.get("onboarding_step") or 1
+                    )
+                    itens.insert(
+                        4,
+                        ft.Button(
+                            "Configurar serviços · 3/5"
+                            if proxima_etapa == 3 else "Gerenciar serviços",
+                            icon=ft.Icons.DESIGN_SERVICES_OUTLINED,
+                            bgcolor="#292929",
+                            color="#EDEDED",
+                            on_click=abrir_servicos,
                         ),
                     )
         else:
