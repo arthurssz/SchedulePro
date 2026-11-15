@@ -10,7 +10,9 @@ CARTAO = "#1D1D1D"
 SECUNDARIO = "#A3A3A3"
 
 
-def abrir_formulario_horarios(page, cadastrados, salvar, concluido):
+def abrir_formulario_horarios(
+    page, cadastrados, salvar, concluido, *, tipo="estabelecimento",
+):
     """Jornadas do estabelecimento: dias, múltiplos intervalos e pausas."""
     existentes = {
         int(registro["weekday"]): registro.get("intervals") or []
@@ -160,7 +162,12 @@ def abrir_formulario_horarios(page, cadastrados, salvar, concluido):
         page.show_dialog(
             ft.SnackBar(
                 content=ft.Text(
-                    "Horários salvos! A configuração avançou para a etapa 3/5."
+                    (
+                        "Jornada do profissional salva. Volte à revisão "
+                        "para ativar o negócio."
+                        if tipo == "profissional"
+                        else "Horários salvos! Configuração avançou para 3/5."
+                    )
                 ),
             )
         )
@@ -177,18 +184,29 @@ def abrir_formulario_horarios(page, cadastrados, salvar, concluido):
         tight=True,
         controls=[
             ft.Text(
-                "HORÁRIOS DE FUNCIONAMENTO · 2/5",
+                (
+                    "JORNADA DO PROFISSIONAL · ETAPA 5/5"
+                    if tipo == "profissional"
+                    else "HORÁRIOS DE FUNCIONAMENTO · 2/5"
+                ),
                 size=11,
                 color=SECUNDARIO,
             ),
             ft.Text(
-                "Jornada semanal",
+                "Jornada do profissional"
+                if tipo == "profissional" else "Jornada semanal",
                 size=23,
                 weight=ft.FontWeight.BOLD,
             ),
             ft.Text(
-                "Ative os dias em que o estabelecimento funciona. "
-                "Use mais de um intervalo para incluir pausas, como almoço.",
+                (
+                    "A jornada deve ficar dentro dos horários do negócio. "
+                    "Edite os dias e pausas antes de salvar."
+                    if tipo == "profissional"
+                    else
+                    "Ative os dias em que o estabelecimento funciona. "
+                    "Use mais de um intervalo para incluir pausas, como almoço."
+                ),
                 size=13,
                 color=SECUNDARIO,
             ),
