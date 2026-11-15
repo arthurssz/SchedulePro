@@ -1245,11 +1245,11 @@ def criar_painel(page: ft.Page, sair_da_conta):
             "ATENDIMENTO E AGENDA",
             (
                 ("Serviços", ft.Icons.DESIGN_SERVICES_OUTLINED,
-                 "Catálogo, preços e duração dos serviços"),
+                 "Catálogo, preços e duração"),
                 ("Profissionais", ft.Icons.PEOPLE_OUTLINE,
-                 "Equipe e serviços oferecidos"),
+                 "Equipe e especialidades"),
                 ("Horários e bloqueios", ft.Icons.SCHEDULE,
-                 "Disponibilidade, folgas e pausas"),
+                 "Horários, pausas e folgas"),
             ),
         ),
         (
@@ -1258,18 +1258,18 @@ def criar_painel(page: ft.Page, sair_da_conta):
                 ("Relatórios", ft.Icons.BAR_CHART_OUTLINED,
                  "Indicadores e desempenho"),
                 ("Equipe e permissões", ft.Icons.ADMIN_PANEL_SETTINGS_OUTLINED,
-                 "Funções e acesso dos colaboradores"),
+                 "Acessos e permissões"),
             ),
         ),
         (
             "CONFIGURAÇÕES",
             (
                 ("Preferências", ft.Icons.TUNE,
-                 "Aparência e opções do aplicativo"),
+                 "Aparência e ajustes"),
                 ("Minha conta", ft.Icons.ACCOUNT_CIRCLE_OUTLINED,
-                 "Informações e segurança da conta"),
+                 "Perfil e segurança"),
                 ("Ajuda e sobre", ft.Icons.HELP_OUTLINE,
-                 "Suporte e informações do SchedulePro"),
+                 "Ajuda e informações do app"),
             ),
         ),
     )
@@ -1285,20 +1285,20 @@ def criar_painel(page: ft.Page, sair_da_conta):
     def linha_area_mais(nome: str, icone, descricao: str):
         return ft.Container(
             bgcolor=CARTAO,
-            border_radius=12,
-            padding=ft.Padding.symmetric(horizontal=14, vertical=13),
+            border_radius=10,
+            padding=ft.Padding.symmetric(horizontal=12, vertical=10),
             on_click=lambda _, area=nome: abrir_area_mais(area),
             content=ft.Row(
-                spacing=13,
+                spacing=11,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 controls=[
                     ft.Container(
-                        width=42,
-                        height=42,
+                        width=38,
+                        height=38,
                         bgcolor="#2B2B2B",
                         border_radius=12,
                         alignment=ft.Alignment.CENTER,
-                        content=ft.Icon(icone, size=22, color="#E6E6E6"),
+                        content=ft.Icon(icone, size=20, color="#E6E6E6"),
                     ),
                     ft.Column(
                         expand=True,
@@ -1342,7 +1342,7 @@ def criar_painel(page: ft.Page, sair_da_conta):
         for titulo, areas in MAIS_GRUPOS:
             itens.append(
                 ft.Container(
-                    padding=ft.Padding.only(top=16, bottom=5),
+                    padding=ft.Padding.only(top=10, bottom=3),
                     content=ft.Text(
                         titulo,
                         size=11,
@@ -1489,10 +1489,7 @@ def criar_painel(page: ft.Page, sair_da_conta):
 
     def renderizar(indice: int):
         titulo = ABAS[indice][0]
-        itens = [
-            cabecalho(),
-            ft.Divider(height=8, color="#2B2B2B"),
-        ]
+        itens = []
 
         if indice == 0:
             itens.extend(
@@ -1671,8 +1668,19 @@ def criar_painel(page: ft.Page, sair_da_conta):
                 expand=True,
                 content=ft.Container(
                     expand=True,
-                    padding=20,
-                    content=conteudo,
+                    padding=ft.Padding.symmetric(horizontal=20, vertical=10),
+                    content=ft.Column(
+                        expand=True,
+                        spacing=0,
+                        controls=[
+                            ft.Container(
+                                padding=ft.Padding.only(bottom=6),
+                                content=cabecalho(),
+                            ),
+                            ft.Divider(height=8, color="#2B2B2B"),
+                            conteudo,
+                        ],
+                    ),
                 ),
             )
         )
