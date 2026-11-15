@@ -1,7 +1,7 @@
-"""Fluxo OAuth Google/Supabase com PKCE para o teste inicial no Android.
+"""Google OAuth com PKCE e renovação de sessões do Supabase.
 
-A sessão NÃO é persistida nesta etapa. Persistência segura, refresh e logout
-serão implementados antes de usar o aplicativo com dados reais.
+Nenhum segredo de servidor é incluído no app. A chave publicável do
+Supabase é segura para clientes, desde que as tabelas usem RLS.
 """
 
 import base64
@@ -17,6 +17,10 @@ from supabase_config import (
     SUPABASE_PUBLISHABLE_KEY,
     SUPABASE_URL,
 )
+
+
+class SessaoInvalida(Exception):
+    """A credencial local não pode mais ser renovada."""
 
 
 def iniciar_google():
@@ -36,14 +40,11 @@ def iniciar_google():
     return verificador, f"{SUPABASE_URL}/auth/v1/authorize?{parametros}"
 
 
-def completar_google(codigo: str, verificador: str) -> str:
-    """Troca o código PKCE por sessão e retorna somente o e-mail de teste."""
-    payload = json.dumps(
-        {"auth_code": codigo, "code_verifier": verificador}
-    ).encode("utf-8")
+def _receber_sessao(grant_type: str, dados: dict):
+    """Obtém tokens e usuário usando a API pública de Auth do Supabase."""
     requisicao = urllib.request.Request(
-        f"{SUPABASE_URL}/auth/v1/token?grant_type=pkce",
-        data=payload,
+        f"{SUPABASE_URL}/auth/v1/token?grant_type={grant_type}",
+        data=json.dumps(dados).encode("utf-8"),
         headers={
             "apikey": SUPABASE_PUBLISHABLE_KEY,
             "Content-Type": "application/json",
@@ -52,15 +53,48 @@ def completar_google(codigo: str, verificador: str) -> str:
     )
     try:
         with urllib.request.urlopen(requisicao, timeout=25) as resposta:
-            dados = json.load(resposta)
+            sessao = json.load(resposta)
     except urllib.error.HTTPError as erro:
-        raise RuntimeError(
-            "O Supabase não conseguiu validar o retorno do Google."
-        ) from erro
+        if grant_type == "refresh_token" and erro.code in (400, 401, 403):
+            raise SessaoInvalida("Sessão expirada ou revogada.") from erro
+        raise RuntimeError("Não foi possível validar a sessão.") from erro
+    except (urllib.error.URLError, TimeoutError) as erro:
+        raise ConnectionError("Não foi possível acessar o Supabase.") from erro
 
-    usuario = dados.get("user") or {}
+    usuario = sessao.get("user") or {}
     email = usuario.get("email")
-    if not email:
-        raise RuntimeError("O Google não retornou um e-mail válido.")
-    # Teste inicial: não grava tokens nem sessão em disco.
-    return email
+    access_token = sessao.get("access_token")
+    refresh_token = sessao.get("refresh_token")
+    if not (email and access_token and refresh_token):
+        raise RuntimeError("Resposta de autenticação incompleta.")
+    return {
+        "email": email,
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+    }
+
+
+def completar_google(codigo: str, verificador: str):
+    """Troca o código PKCE por uma sessão autenticada."""
+    return _receber_sessao(
+        "pkce", {"auth_code": codigo, "code_verifier": verificador}
+    )
+
+
+def renovar_sessao(refresh_token: str):
+    """Renova a sessão; o Supabase rotaciona o token de renovação."""
+    return _receber_sessao("refresh_token", {"refresh_token": refresh_token})
+
+
+def encerrar_sessao(access_token: str):
+    """Revoga a sessão deste dispositivo, sem sair dos outros aparelhos."""
+    requisicao = urllib.request.Request(
+        f"{SUPABASE_URL}/auth/v1/logout?scope=local",
+        headers={
+            "apikey": SUPABASE_PUBLISHABLE_KEY,
+            "Authorization": f"Bearer {access_token}",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(requisicao, timeout=15):
+        pass
