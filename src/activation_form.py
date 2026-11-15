@@ -43,8 +43,8 @@ def abrir_revisao_estabelecimento(
         page.show_dialog(
             ft.SnackBar(
                 content=ft.Text(
-                    "Estabelecimento ativo! Agenda interna liberada. "
-                    "Reservas públicas continuam desativadas."
+                    "Estabelecimento ativo! Próxima fase: agendamentos "
+                    "internos. Reservas públicas seguem desativadas."
                 )
             )
         )
@@ -189,7 +189,7 @@ def abrir_revisao_estabelecimento(
         )
     conteudo.append(
         ft.Text(
-            "A ativação libera apenas a agenda interna. "
+            "A ativação conclui a configuração e prepara a agenda interna. "
             "O portal de reservas públicas permanece desligado.",
             size=12, color=CINZA,
         )
