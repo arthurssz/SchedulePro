@@ -59,6 +59,7 @@ def criar_painel(
     abrir_estabelecimento=None, dados_estabelecimento=None,
     abrir_horarios=None,
     abrir_servicos=None,
+    abrir_profissionais=None,
 ):
     """Prepara a navegação e retorna a função que abre o painel."""
     conteudo = ft.Column(
@@ -1280,6 +1281,9 @@ def criar_painel(
     )
 
     def abrir_area_mais(nome: str):
+        if nome == "Profissionais" and abrir_profissionais is not None:
+            page.run_task(abrir_profissionais)
+            return
         if nome == "Serviços" and abrir_servicos is not None:
             page.run_task(abrir_servicos)
             return
@@ -1688,6 +1692,27 @@ def criar_painel(
                             bgcolor="#292929",
                             color="#EDEDED",
                             on_click=abrir_servicos,
+                        ),
+                    )
+                if (
+                    tem_negocio and abrir_profissionais is not None
+                    and int(
+                        dados_estabelecimento.get("onboarding_step") or 1
+                    ) >= 4
+                ):
+                    etapa_profissionais = int(
+                        dados_estabelecimento.get("onboarding_step") or 1
+                    )
+                    itens.insert(
+                        5,
+                        ft.Button(
+                            "Configurar profissionais · 4/5"
+                            if etapa_profissionais == 4
+                            else "Gerenciar profissionais",
+                            icon=ft.Icons.PEOPLE_OUTLINE,
+                            bgcolor="#292929",
+                            color="#EDEDED",
+                            on_click=abrir_profissionais,
                         ),
                     )
         else:
