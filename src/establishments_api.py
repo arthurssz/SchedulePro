@@ -104,8 +104,6 @@ def salvar_primeira_etapa(token: str, formulario: dict, identificador=None):
         "phone": telefone,
         "address": endereco,
         "description": descricao,
-        "onboarding_step": 2,
-        "onboarding_completed": False,
     }
     if identificador:
         try:
@@ -121,6 +119,8 @@ def salvar_primeira_etapa(token: str, formulario: dict, identificador=None):
                 "Cadastro não encontrado ou sem permissão de edição."
             )
     else:
+        dados["onboarding_step"] = 2
+        dados["onboarding_completed"] = False
         resultado = _requisitar("POST", token, "", dados)
     if not isinstance(resultado, list) or not resultado:
         raise ErroEstabelecimento("O servidor não confirmou o salvamento.")
