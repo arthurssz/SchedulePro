@@ -57,6 +57,7 @@ def cartao(titulo: str, descricao: str, expand: bool = False) -> ft.Container:
 def criar_painel(
     page: ft.Page, sair_da_conta,
     abrir_estabelecimento=None, dados_estabelecimento=None,
+    abrir_horarios=None,
 ):
     """Prepara a navegação e retorna a função que abre o painel."""
     conteudo = ft.Column(
@@ -1278,6 +1279,10 @@ def criar_painel(
     )
 
     def abrir_area_mais(nome: str):
+        if nome == "Horários e bloqueios" and abrir_horarios is not None:
+            if dados_estabelecimento and dados_estabelecimento.get("id"):
+                abrir_horarios()
+                return
         mais_estado["pagina"] = nome
         renderizar(3)
 
@@ -1646,6 +1651,21 @@ def criar_painel(
                         on_click=abrir_estabelecimento,
                     ),
                 )
+                if tem_negocio and abrir_horarios is not None:
+                    etapa_atual = int(
+                        dados_estabelecimento.get("onboarding_step") or 1
+                    )
+                    itens.insert(
+                        3,
+                        ft.Button(
+                            "Configurar horários · 2/5"
+                            if etapa_atual <= 2 else "Editar horários",
+                            icon=ft.Icons.SCHEDULE,
+                            bgcolor="#292929",
+                            color="#EDEDED",
+                            on_click=abrir_horarios,
+                        ),
+                    )
         else:
             itens.append(
                 ft.Text(
