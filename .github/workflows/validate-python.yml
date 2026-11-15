@@ -1,0 +1,28 @@
+name: Validar Python do SchedulePro
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - '.github/workflows/validate-python.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@v4
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Conferir sintaxe de todo o projeto
+        run: python -m compileall -q src tests
+      - name: Testar requisicoes sem internet
+        run: python -m unittest discover -s tests -v
