@@ -1160,33 +1160,38 @@ def criar_painel(page: ft.Page, sair_da_conta):
                     pequeno_indicador("Último atendimento", "—"),
                 ],
             ),
-            ft.Container(
-                bgcolor=CARTAO,
-                border_radius=13,
-                padding=14,
-                content=ft.Column(
-                    tight=True,
-                    spacing=6,
-                    controls=[
-                        ft.Text(
-                            "Observações",
-                            size=13,
-                            weight=ft.FontWeight.BOLD,
+            ft.Row(
+                controls=[
+                    ft.Container(
+                        expand=True,
+                        bgcolor=CARTAO,
+                        border_radius=13,
+                        padding=14,
+                        content=ft.Column(
+                            tight=True,
+                            spacing=6,
+                            controls=[
+                                ft.Text(
+                                    "Observações",
+                                    size=13,
+                                    weight=ft.FontWeight.BOLD,
+                                ),
+                                ft.Text(
+                                    cliente["observacoes"] or "Nenhuma observação.",
+                                    size=13,
+                                    color=TEXTO_SECUNDARIO,
+                                ),
+                            ],
                         ),
-                        ft.Text(
-                            cliente["observacoes"] or "Nenhuma observação.",
-                            size=13,
-                            color=TEXTO_SECUNDARIO,
-                        ),
-                    ],
-                ),
+                    ),
+                ],
             ),
             ft.Row(
                 spacing=9,
                 controls=[
                     ft.Button(
                         "Novo agendamento",
-                        expand=True,
+                        expand=2,
                         icon=ft.Icons.ADD,
                         bgcolor="#F0F0F0",
                         color="#171717",
@@ -1194,7 +1199,7 @@ def criar_painel(page: ft.Page, sair_da_conta):
                     ),
                     ft.Button(
                         "Editar",
-                        expand=True,
+                        expand=1,
                         icon=ft.Icons.EDIT_OUTLINED,
                         bgcolor="#292929",
                         color="#E2E2E2",
