@@ -54,7 +54,10 @@ def cartao(titulo: str, descricao: str, expand: bool = False) -> ft.Container:
 
 
 
-def criar_painel(page: ft.Page, sair_da_conta):
+def criar_painel(
+    page: ft.Page, sair_da_conta,
+    abrir_estabelecimento=None, dados_estabelecimento=None,
+):
     """Prepara a navegação e retorna a função que abre o painel."""
     conteudo = ft.Column(
         expand=True,
@@ -1495,7 +1498,12 @@ def criar_painel(page: ft.Page, sair_da_conta):
             itens.extend(
                 [
                     ft.Text(
-                        "ESTABELECIMENTO NÃO CONFIGURADO",
+                        (
+                            (dados_estabelecimento.get("name") or "").upper()
+                            if dados_estabelecimento and
+                            dados_estabelecimento.get("name")
+                            else "ESTABELECIMENTO NÃO CONFIGURADO"
+                        ),
                         size=11,
                         color=TEXTO_SECUNDARIO,
                     ),
@@ -1623,6 +1631,21 @@ def criar_painel(page: ft.Page, sair_da_conta):
                     ),
                 ]
             )
+            if abrir_estabelecimento is not None:
+                tem_negocio = bool(
+                    dados_estabelecimento and dados_estabelecimento.get("id")
+                )
+                itens.insert(
+                    2,
+                    ft.Button(
+                        "Editar dados do negócio" if tem_negocio
+                        else "Cadastrar estabelecimento",
+                        icon=ft.Icons.STOREFRONT_OUTLINED,
+                        bgcolor="#292929",
+                        color="#EDEDED",
+                        on_click=abrir_estabelecimento,
+                    ),
+                )
         else:
             itens.append(
                 ft.Text(
