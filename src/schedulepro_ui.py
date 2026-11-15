@@ -13,6 +13,8 @@ TEXTO_SECUNDARIO = "#A3A3A3"
 
 DIAS_SEMANA = ("Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo")
 MESES = ("janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro")
+DIAS_CURTOS = ("Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom")
+MESES_CURTOS = ("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")
 
 ABAS = [
     ("Início", ft.Icons.HOME_OUTLINED),
@@ -55,7 +57,7 @@ def criar_painel(page: ft.Page, sair_da_conta):
     """Prepara a navegação e retorna a função que abre o painel."""
     conteudo = ft.Column(
         expand=True,
-        spacing=14,
+        spacing=9,
         scroll=ft.ScrollMode.AUTO,
         horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
     )
@@ -114,6 +116,9 @@ def criar_painel(page: ft.Page, sair_da_conta):
         renderizar(3)
 
     def formatar_data(valor: date):
+        # Evita quebra de linha em telas pequenas do Android.
+        if (page.width or 360) < 500:
+            return f"{DIAS_CURTOS[valor.weekday()]}, {valor.day} {MESES_CURTOS[valor.month - 1]}"
         return (
             f"{DIAS_SEMANA[valor.weekday()]}, {valor.day} "
             f"de {MESES[valor.month - 1]}"
@@ -122,11 +127,11 @@ def criar_painel(page: ft.Page, sair_da_conta):
     def resumo(numero: str, legenda: str):
         return ft.Column(
             expand=True,
-            spacing=7,
+            spacing=4,
             controls=[
                 ft.Text(
                     numero,
-                    size=30,
+                    size=28,
                     weight=ft.FontWeight.BOLD,
                 ),
                 ft.Text(
@@ -141,7 +146,7 @@ def criar_painel(page: ft.Page, sair_da_conta):
         titulo = ABAS[indice][0]
         itens = [
             cabecalho(),
-            ft.Divider(height=18, color="#2B2B2B"),
+            ft.Divider(height=8, color="#2B2B2B"),
         ]
 
         if indice == 0:
@@ -177,6 +182,8 @@ def criar_painel(page: ft.Page, sair_da_conta):
                             ),
                             ft.Button(
                                 "Hoje",
+                                color="#EDEDED",
+                                bgcolor=CARTAO,
                                 on_click=ir_para_hoje,
                             ),
                             ft.IconButton(
@@ -188,7 +195,7 @@ def criar_painel(page: ft.Page, sair_da_conta):
                         ],
                     ),
                     ft.Container(
-                        padding=ft.Padding.only(top=12, bottom=12),
+                        padding=ft.Padding.only(top=5, bottom=5),
                         content=ft.Row(
                             spacing=8,
                             controls=[
@@ -201,7 +208,7 @@ def criar_painel(page: ft.Page, sair_da_conta):
                     ft.Container(
                         bgcolor="#F1F1F1",
                         border_radius=14,
-                        padding=15,
+                        padding=13,
                         on_click=lambda _: mostrar_aviso(
                             "Primeiro vamos cadastrar seu estabelecimento "
                             "para habilitar os agendamentos."
@@ -223,17 +230,18 @@ def criar_painel(page: ft.Page, sair_da_conta):
                             ],
                         ),
                     ),
-                    ft.Container(height=7),
                     ft.Row(
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                         controls=[
                             ft.Text(
                                 "Agenda do dia",
-                                size=21,
+                                size=20,
                                 weight=ft.FontWeight.BOLD,
                             ),
                             ft.Button(
                                 "Todos",
+                                color="#D5D5D5",
+                                bgcolor=CARTAO,
                                 on_click=lambda _: mostrar_aviso(
                                     "Os filtros serão liberados quando "
                                     "a agenda estiver integrada."
@@ -244,7 +252,7 @@ def criar_painel(page: ft.Page, sair_da_conta):
                     ft.Container(
                         bgcolor=CARTAO,
                         border_radius=12,
-                        padding=20,
+                        padding=16,
                         content=ft.Column(
                             spacing=7,
                             tight=True,
