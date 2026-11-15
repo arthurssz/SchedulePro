@@ -43,9 +43,18 @@ jobs:
       - name: Validar sintaxe Python
         run: python3 -m compileall -q preview/src
 
+      - name: Preparar URL exclusiva por versão
+        run: echo "PREVIEW_VERSION=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
+
       - name: Compilar Flet para web
         working-directory: preview
-        run: uv run flet build web --yes --base-url /SchedulePro/ --route-url-strategy hash --python-version 3.12
+        run: uv run flet build web --yes --base-url "/SchedulePro/versions/${PREVIEW_VERSION}/" --route-url-strategy hash --python-version 3.12
+
+      - name: Organizar site e redirecionar à versão atual
+        run: |
+          mkdir -p "preview/site/versions/${PREVIEW_VERSION}"
+          cp -a preview/build/web/. "preview/site/versions/${PREVIEW_VERSION}/"
+          echo "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"refresh\" content=\"0;url=versions/${PREVIEW_VERSION}/\"><title>SchedulePro - Previa</title></head><body><a href=\"versions/${PREVIEW_VERSION}/\">Abrir a prévia atual</a></body></html>" > preview/site/index.html
 
       - name: Configurar GitHub Pages
         uses: actions/configure-pages@v5
@@ -53,7 +62,7 @@ jobs:
       - name: Enviar site
         uses: actions/upload-pages-artifact@v4
         with:
-          path: preview/build/web
+          path: preview/site
 
       - name: Publicar no GitHub Pages
         id: deploy
