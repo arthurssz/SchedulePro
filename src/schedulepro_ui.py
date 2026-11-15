@@ -1236,6 +1236,257 @@ def criar_painel(page: ft.Page, sair_da_conta):
             )
         )
 
+    # A aba Mais agrupa as áreas aprovadas do aplicativo.
+    # A prévia visual não usa credenciais ou dados do Supabase.
+    mais_estado = {"pagina": None}
+
+    MAIS_GRUPOS = (
+        (
+            "ATENDIMENTO E AGENDA",
+            (
+                ("Serviços", ft.Icons.DESIGN_SERVICES_OUTLINED,
+                 "Catálogo, preços e duração dos serviços"),
+                ("Profissionais", ft.Icons.PEOPLE_OUTLINE,
+                 "Equipe e serviços oferecidos"),
+                ("Horários e bloqueios", ft.Icons.SCHEDULE,
+                 "Disponibilidade, folgas e pausas"),
+            ),
+        ),
+        (
+            "GESTÃO",
+            (
+                ("Relatórios", ft.Icons.BAR_CHART_OUTLINED,
+                 "Indicadores e desempenho"),
+                ("Equipe e permissões", ft.Icons.ADMIN_PANEL_SETTINGS_OUTLINED,
+                 "Funções e acesso dos colaboradores"),
+            ),
+        ),
+        (
+            "CONFIGURAÇÕES",
+            (
+                ("Preferências", ft.Icons.TUNE,
+                 "Aparência e opções do aplicativo"),
+                ("Minha conta", ft.Icons.ACCOUNT_CIRCLE_OUTLINED,
+                 "Informações e segurança da conta"),
+                ("Ajuda e sobre", ft.Icons.HELP_OUTLINE,
+                 "Suporte e informações do SchedulePro"),
+            ),
+        ),
+    )
+
+    def abrir_area_mais(nome: str):
+        mais_estado["pagina"] = nome
+        renderizar(3)
+
+    def voltar_mais(evento):
+        mais_estado["pagina"] = None
+        renderizar(3)
+
+    def linha_area_mais(nome: str, icone, descricao: str):
+        return ft.Container(
+            bgcolor=CARTAO,
+            border_radius=12,
+            padding=ft.Padding.symmetric(horizontal=14, vertical=13),
+            on_click=lambda _, area=nome: abrir_area_mais(area),
+            content=ft.Row(
+                spacing=13,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                controls=[
+                    ft.Container(
+                        width=42,
+                        height=42,
+                        bgcolor="#2B2B2B",
+                        border_radius=12,
+                        alignment=ft.Alignment.CENTER,
+                        content=ft.Icon(icone, size=22, color="#E6E6E6"),
+                    ),
+                    ft.Column(
+                        expand=True,
+                        tight=True,
+                        spacing=3,
+                        controls=[
+                            ft.Text(
+                                nome,
+                                size=14,
+                                weight=ft.FontWeight.BOLD,
+                            ),
+                            ft.Text(
+                                descricao,
+                                size=11,
+                                color=TEXTO_SECUNDARIO,
+                            ),
+                        ],
+                    ),
+                    ft.Icon(
+                        ft.Icons.CHEVRON_RIGHT,
+                        size=20,
+                        color="#8C8C8C",
+                    ),
+                ],
+            ),
+        )
+
+    def criar_inicio_mais():
+        itens = [
+            ft.Text(
+                "Mais",
+                size=27,
+                weight=ft.FontWeight.BOLD,
+            ),
+            ft.Text(
+                "Gerencie seu estabelecimento e as configurações.",
+                color=TEXTO_SECUNDARIO,
+                size=13,
+            ),
+        ]
+        for titulo, areas in MAIS_GRUPOS:
+            itens.append(
+                ft.Container(
+                    padding=ft.Padding.only(top=16, bottom=5),
+                    content=ft.Text(
+                        titulo,
+                        size=11,
+                        weight=ft.FontWeight.W_500,
+                        color=TEXTO_SECUNDARIO,
+                    ),
+                )
+            )
+            for nome, icone, descricao in areas:
+                itens.append(linha_area_mais(nome, icone, descricao))
+        itens.extend(
+            [
+                ft.Container(height=7),
+                ft.Button(
+                    "Sair da conta",
+                    icon=ft.Icons.LOGOUT,
+                    bgcolor="#292929",
+                    color="#E2E2E2",
+                    on_click=sair_da_conta,
+                ),
+                ft.Text(
+                    "SchedulePro · Prévia de desenvolvimento",
+                    color=TEXTO_SECUNDARIO,
+                    text_align=ft.TextAlign.CENTER,
+                    size=11,
+                ),
+            ]
+        )
+        return itens
+
+    def criar_detalhe_mais(nome: str):
+        descricoes = {
+            "Serviços": (
+                ft.Icons.DESIGN_SERVICES_OUTLINED,
+                "Configure os serviços, preços e duração dos atendimentos.",
+                "Nenhum serviço cadastrado",
+            ),
+            "Profissionais": (
+                ft.Icons.PEOPLE_OUTLINE,
+                "Cadastre os profissionais e vincule os serviços.",
+                "Nenhum profissional cadastrado",
+            ),
+            "Horários e bloqueios": (
+                ft.Icons.SCHEDULE,
+                "Defina os horários de funcionamento, pausas e folgas.",
+                "Horários ainda não configurados",
+            ),
+            "Relatórios": (
+                ft.Icons.BAR_CHART_OUTLINED,
+                "Acompanhe agendamentos, receitas e desempenho.",
+                "Dados disponíveis após os primeiros agendamentos",
+            ),
+            "Equipe e permissões": (
+                ft.Icons.ADMIN_PANEL_SETTINGS_OUTLINED,
+                "Administre quem pode acessar cada função.",
+                "Permissões ainda não configuradas",
+            ),
+            "Preferências": (
+                ft.Icons.TUNE,
+                "Personalize a experiência do SchedulePro.",
+                "Opções de aparência e preferências em preparação",
+            ),
+            "Minha conta": (
+                ft.Icons.ACCOUNT_CIRCLE_OUTLINED,
+                "Gerencie as informações e a segurança da sua conta.",
+                "Dados da conta disponíveis no aplicativo autenticado",
+            ),
+            "Ajuda e sobre": (
+                ft.Icons.HELP_OUTLINE,
+                "Encontre informações sobre o SchedulePro.",
+                "Central de ajuda em preparação",
+            ),
+        }
+        icone, descricao, estado = descricoes[nome]
+        controles = [
+            ft.Row(
+                spacing=6,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                controls=[
+                    ft.IconButton(
+                        icon=ft.Icons.ARROW_BACK,
+                        tooltip="Voltar para Mais",
+                        on_click=voltar_mais,
+                    ),
+                    ft.Text(
+                        nome,
+                        size=21,
+                        weight=ft.FontWeight.BOLD,
+                        expand=True,
+                    ),
+                ],
+            ),
+            ft.Text(
+                descricao,
+                size=13,
+                color=TEXTO_SECUNDARIO,
+            ),
+            ft.Container(
+                padding=ft.Padding.symmetric(horizontal=18, vertical=29),
+                bgcolor=CARTAO,
+                border_radius=15,
+                content=ft.Column(
+                    tight=True,
+                    spacing=12,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    controls=[
+                        ft.Icon(
+                            icone,
+                            size=34,
+                            color="#BFBFBF",
+                        ),
+                        ft.Text(
+                            estado,
+                            size=15,
+                            weight=ft.FontWeight.BOLD,
+                            text_align=ft.TextAlign.CENTER,
+                        ),
+                        ft.Text(
+                            "Esta área será conectada às funcionalidades "
+                            "reais nas próximas etapas.",
+                            color=TEXTO_SECUNDARIO,
+                            size=12,
+                            text_align=ft.TextAlign.CENTER,
+                        ),
+                    ],
+                ),
+            ),
+        ]
+        if nome == "Minha conta":
+            controles.append(
+                ft.Button(
+                    "Sair da conta",
+                    icon=ft.Icons.LOGOUT,
+                    bgcolor="#292929",
+                    color="#E2E2E2",
+                    on_click=sair_da_conta,
+                )
+            )
+        return controles
+
+    def criar_mais():
+        pagina = mais_estado["pagina"]
+        return criar_detalhe_mais(pagina) if pagina else criar_inicio_mais()
+
     def renderizar(indice: int):
         titulo = ABAS[indice][0]
         itens = [
@@ -1390,23 +1641,8 @@ def criar_painel(page: ft.Page, sair_da_conta):
                 itens.pop()
                 itens.extend(criar_clientes_ui())
             else:
-                itens.append(
-                    ft.Button(
-                        "Sair da conta",
-                        icon=ft.Icons.LOGOUT,
-                        on_click=sair_da_conta,
-                    )
-                )
-                itens.append(
-                    ft.Text(
-                        "Áreas previstas para as próximas etapas:",
-                        color=TEXTO_SECUNDARIO,
-                        size=13,
-                    )
-                )
-                itens.extend(
-                    cartao(nome, "Em desenvolvimento") for nome in AREAS
-                )
+                itens.pop()
+                itens.extend(criar_mais())
 
         conteudo.controls = itens
         page.update()
@@ -1414,6 +1650,8 @@ def criar_painel(page: ft.Page, sair_da_conta):
             atualizar_lista_clientes()
 
     def mudar_aba(evento):
+        if evento.control.selected_index != 3:
+            mais_estado["pagina"] = None
         renderizar(evento.control.selected_index)
 
     def mostrar_painel():
