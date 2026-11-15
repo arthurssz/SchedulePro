@@ -60,6 +60,7 @@ def criar_painel(
     abrir_horarios=None,
     abrir_servicos=None,
     abrir_profissionais=None,
+    abrir_revisao=None,
 ):
     """Prepara a navegação e retorna a função que abre o painel."""
     conteudo = ft.Column(
@@ -1713,6 +1714,26 @@ def criar_painel(
                             bgcolor="#292929",
                             color="#EDEDED",
                             on_click=abrir_profissionais,
+                        ),
+                    )
+                if (
+                    tem_negocio and abrir_revisao is not None
+                    and int(
+                        dados_estabelecimento.get("onboarding_step") or 1
+                    ) >= 5
+                ):
+                    esta_ativo = bool(
+                        dados_estabelecimento.get("onboarding_completed")
+                    )
+                    itens.insert(
+                        6,
+                        ft.Button(
+                            "Estabelecimento ativo · Ver revisão"
+                            if esta_ativo else "Revisar e ativar · 5/5",
+                            icon=ft.Icons.CHECK_CIRCLE_OUTLINE,
+                            bgcolor="#292929",
+                            color="#EDEDED",
+                            on_click=abrir_revisao,
                         ),
                     )
         else:
