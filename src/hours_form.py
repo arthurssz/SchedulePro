@@ -166,8 +166,14 @@ def abrir_formulario_horarios(page, cadastrados, salvar, concluido):
         )
 
     botao_salvar.on_click = confirmar
-    pagina = ft.Column(
-        spacing=11,
+    # BottomSheet.scrollable só remove o limite de altura; a rolagem
+    # deve estar explicitamente em um controle com altura limitada.
+    # Deixar Salvar e Cancelar fora da lista evita que fiquem inacessíveis.
+    altura_disponivel = page.height or 720
+    altura_formulario = max(280, min(720, altura_disponivel * 0.80))
+
+    cabecalho = ft.Column(
+        spacing=8,
         tight=True,
         controls=[
             ft.Text(
@@ -186,7 +192,23 @@ def abrir_formulario_horarios(page, cadastrados, salvar, concluido):
                 size=13,
                 color=SECUNDARIO,
             ),
-            *controles,
+        ],
+    )
+
+    lista_dias = ft.Column(
+        expand=True,
+        spacing=11,
+        scroll=ft.ScrollMode.AUTO,
+        horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+        controls=controles,
+    )
+
+    pagina = ft.Column(
+        expand=True,
+        spacing=10,
+        controls=[
+            cabecalho,
+            lista_dias,
             erro,
             ft.Row(
                 alignment=ft.MainAxisAlignment.END,
@@ -200,8 +222,8 @@ def abrir_formulario_horarios(page, cadastrados, salvar, concluido):
                 ],
             ),
             ft.Text(
-                "Não é possível sobrepor horários ou atravessar a meia-noite. "
-                "Folgas e bloqueios excepcionais serão configurados depois.",
+                "Horários que ultrapassam a meia-noite e intervalos "
+                "sobrepostos não são permitidos.",
                 size=11,
                 color=SECUNDARIO,
             ),
@@ -214,7 +236,8 @@ def abrir_formulario_horarios(page, cadastrados, salvar, concluido):
             show_drag_handle=True,
             bgcolor=FUNDO,
             content=ft.Container(
-                padding=18,
+                height=altura_formulario,
+                padding=ft.Padding.symmetric(horizontal=18, vertical=12),
                 content=pagina,
             ),
         )
