@@ -12,6 +12,8 @@ from establishments_api import (
     salvar_primeira_etapa,
 )
 from establishment_form import abrir_formulario_estabelecimento
+from hours_api import carregar_horarios, salvar_horarios
+from hours_form import abrir_formulario_horarios
 
 from auth_flow import (
     SessaoInvalida,
@@ -78,6 +80,43 @@ async def main(page: ft.Page):
             estado_estabelecimento,
             salvar_dados,
             cadastro_salvo,
+        )
+
+    async def abrir_horarios(evento=None):
+        """Abre e salva jornadas do estabelecimento com a sessão atual."""
+        token = usuario["access_token"]
+        identificador = estado_estabelecimento.get("id")
+        if not token or not identificador or not consulta_estabelecimento["ok"]:
+            page.show_dialog(
+                ft.SnackBar(
+                    content=ft.Text(
+                        "Entre na conta e cadastre o estabelecimento primeiro."
+                    )
+                )
+            )
+            return
+        try:
+            cadastrados = await asyncio.to_thread(
+                carregar_horarios, token, identificador
+            )
+        except ErroEstabelecimento as erro:
+            page.show_dialog(ft.SnackBar(content=ft.Text(str(erro))))
+            return
+
+        async def gravar(semana):
+            return await asyncio.to_thread(
+                salvar_horarios, usuario["access_token"],
+                identificador, semana,
+                estado_estabelecimento.get("onboarding_step", 2),
+            )
+
+        def jornada_salva():
+            etapa = int(estado_estabelecimento.get("onboarding_step") or 1)
+            estado_estabelecimento["onboarding_step"] = max(etapa, 3)
+            mostrar_painel()
+
+        abrir_formulario_horarios(
+            page, cadastrados, gravar, jornada_salva
         )
 
     async def entrar_no_painel():
@@ -259,6 +298,7 @@ async def main(page: ft.Page):
         sair_da_conta,
         abrir_estabelecimento=abrir_cadastro_estabelecimento,
         dados_estabelecimento=estado_estabelecimento,
+        abrir_horarios=abrir_horarios,
     )
     page.on_route_change = ao_mudar_rota
     mostrar_login()
