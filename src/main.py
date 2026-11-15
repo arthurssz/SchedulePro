@@ -58,7 +58,7 @@ async def main(page: ft.Page):
 
     preferencias = ft.SharedPreferences()
     navegador = ft.UrlLauncher()
-    conteudo = ft.Column(expand=True, spacing=14, scroll=ft.ScrollMode.AUTO)
+    conteudo = ft.Column(expand=True, spacing=14, scroll=ft.ScrollMode.AUTO, horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
     feedback = ft.Text("", size=13, color="#FCA5A5")
     usuario = {"email": None}
 
@@ -126,13 +126,7 @@ async def main(page: ft.Page):
                     size=13,
                 )
             )
-            itens.extend(
-                ft.Container(
-                    width=float("inf"),
-                    content=cartao(nome, "Em desenvolvimento"),
-                )
-                for nome in AREAS
-            )
+            itens.extend(cartao(nome, "Em desenvolvimento") for nome in AREAS)
 
         conteudo.controls = itens
         page.update()
