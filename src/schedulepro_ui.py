@@ -68,6 +68,8 @@ def criar_painel(
     abrir_agendamento=None,
     buscar_agendamentos=None,
     alterar_status_agendamento=None,
+    abrir_reagendamento=None,
+    listar_historico_reagendamento=None,
 ):
     """Prepara a navegação e retorna a função que abre o painel."""
     conteudo = ft.Column(
@@ -196,6 +198,96 @@ def criar_painel(
                 )
             )
 
+        def iniciar_reagendamento(evento):
+            if abrir_reagendamento is None:
+                mostrar_aviso("Reagendamento disponível no APK autenticado.")
+                return
+            page.pop_dialog()
+            abrir_reagendamento(registro)
+
+        async def ver_historico(evento):
+            if listar_historico_reagendamento is None:
+                mostrar_aviso("Histórico disponível no APK autenticado.")
+                return
+            aviso.value = "Carregando histórico..."
+            page.update()
+            try:
+                mudancas = await listar_historico_reagendamento(registro["id"])
+            except Exception as erro:
+                aviso.value = str(erro)
+                page.update()
+                return
+            page.pop_dialog()
+            itens = [
+                ft.Text(
+                    "HISTÓRICO DE REAGENDAMENTOS",
+                    size=11,
+                    color=TEXTO_SECUNDARIO,
+                ),
+                ft.Text(
+                    "Alterações de data e horário",
+                    size=21,
+                    weight=ft.FontWeight.BOLD,
+                ),
+            ]
+            for item in mudancas:
+                de_dia = str(item.get("old_local_date") or "")
+                para_dia = str(item.get("new_local_date") or "")
+                de_hora = str(item.get("old_local_time") or "")[:5]
+                para_hora = str(item.get("new_local_time") or "")[:5]
+                itens.append(
+                    ft.Container(
+                        bgcolor=CARTAO,
+                        border_radius=12,
+                        padding=14,
+                        content=ft.Column(
+                            tight=True,
+                            spacing=8,
+                            controls=[
+                                ft.Text(
+                                    f"De {de_dia[8:10]}/{de_dia[5:7]}/{de_dia[:4]}"
+                                    f" às {de_hora}",
+                                    size=13,
+                                ),
+                                ft.Text(
+                                    f"Para {para_dia[8:10]}/{para_dia[5:7]}/{para_dia[:4]}"
+                                    f" às {para_hora}",
+                                    size=14,
+                                    weight=ft.FontWeight.BOLD,
+                                ),
+                            ],
+                        ),
+                    )
+                )
+            if not mudancas:
+                itens.append(
+                    ft.Text(
+                        "Este atendimento ainda não foi reagendado.",
+                        color=TEXTO_SECUNDARIO,
+                    )
+                )
+            itens.append(
+                ft.TextButton(
+                    "Fechar",
+                    on_click=lambda _: page.pop_dialog(),
+                )
+            )
+            page.show_dialog(
+                ft.BottomSheet(
+                    scrollable=True,
+                    show_drag_handle=True,
+                    bgcolor=FUNDO,
+                    content=ft.Container(
+                        padding=ft.Padding.only(
+                            left=16,top=12,right=16,bottom=44,
+                        ),
+                        content=ft.Column(
+                            tight=True,spacing=12,controls=itens,
+                        ),
+                    ),
+                )
+            )
+
         if status_atual == "scheduled":
             botoes.append(
                 ft.Button(
@@ -207,6 +299,15 @@ def criar_painel(
                 )
             )
         if status_atual in ("scheduled", "confirmed"):
+            botoes.append(
+                ft.Button(
+                    "Reagendar",
+                    icon=ft.Icons.EDIT,
+                    bgcolor="#292929",
+                    color="#F0F0F0",
+                    on_click=iniciar_reagendamento,
+                )
+            )
             if horario_terminou:
                 botoes.append(
                     ft.Button(
@@ -278,6 +379,13 @@ def criar_painel(
                 )
             )
         detalhes.append(aviso)
+        if listar_historico_reagendamento is not None:
+            detalhes.append(
+                ft.TextButton(
+                    "Ver histórico de reagendamentos",
+                    on_click=ver_historico,
+                )
+            )
         if botoes:
             detalhes.extend(botoes)
         else:
