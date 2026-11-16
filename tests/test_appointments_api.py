@@ -131,6 +131,69 @@ class TestAppointments(unittest.TestCase):
                     "jwt-do-usuario", BUSINESS, CLIENT, "confirmed"
                 )
 
+    def test_reagendar_envia_data_e_horario_validados(self):
+        with patch.object(
+            api, "_pedir",
+            return_value={
+                "id": CLIENT,
+                "status": "scheduled",
+                "local_date": "2026-11-23",
+                "local_time": "11:00",
+            },
+        ) as pedido:
+            resposta = api.reagendar_agendamento(
+                "jwt-do-usuario", BUSINESS, CLIENT, "2026-11-23", "11:00",
+            )
+        self.assertEqual(resposta["status"], "scheduled")
+        self.assertEqual(
+            pedido.call_args.args[1],
+            "rpc/schedulepro_reschedule_internal_appointment",
+        )
+        params = pedido.call_args.kwargs["dados"]
+        self.assertEqual(params["p_appointment_id"], CLIENT)
+        self.assertEqual(params["p_new_local_time"], "11:00")
+        self.assertEqual(params["p_new_local_date"], "2026-11-23")
+        self.assertNotIn("owner_id", params)
+
+    def test_reagendar_bloqueia_entradas_invalidas_antes_do_rpc(self):
+        with patch.object(api, "_pedir") as pedido:
+            for dia, hora in (
+                ("23/11/2026", "11:00"),
+                ("2026-11-23", "25:00"),
+                ("2026-11-23", "11:00:01"),
+                ("2026-11-23", "11:00+03:00"),
+            ):
+                with self.subTest(dia=dia, hora=hora):
+                    with self.assertRaises(ErroEstabelecimento):
+                        api.reagendar_agendamento(
+                            "jwt-do-usuario", BUSINESS, CLIENT, dia, hora,
+                        )
+            pedido.assert_not_called()
+
+    def test_reagendamento_exige_resposta_consistente_do_servidor(self):
+        with patch.object(
+            api, "_pedir",
+            return_value={"id": CLIENT, "status": "canceled"},
+        ):
+            with self.assertRaises(ErroEstabelecimento):
+                api.reagendar_agendamento(
+                    "jwt-do-usuario", BUSINESS, CLIENT,
+                    "2026-11-23", "11:00",
+                )
+
+    def test_historico_reagendamentos_tem_filtro_por_dono_e_reserva(self):
+        with patch.object(api, "_pedir", return_value=[]) as pedido:
+            self.assertEqual(
+                api.listar_historico_reagendamentos(
+                    "jwt-do-usuario", BUSINESS, CLIENT,
+                ),
+                [],
+            )
+        caminho = pedido.call_args.args[1]
+        self.assertIn("establishment_id=eq." + BUSINESS, caminho)
+        self.assertIn("appointment_id=eq." + CLIENT, caminho)
+        self.assertIn("order=changed_at.desc", caminho)
+
     def test_filtro_tem_periodo_limitado(self):
         with patch.object(api, "_pedir") as pedir:
             with self.assertRaises(ErroEstabelecimento):
