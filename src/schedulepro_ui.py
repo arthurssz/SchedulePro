@@ -65,6 +65,8 @@ def criar_painel(
     persistir_cliente=None,
     alterar_arquivo_cliente=None,
     remover_cliente_real=None,
+    abrir_agendamento=None,
+    buscar_agendamentos=None,
 ):
     """Prepara a navegação e retorna a função que abre o painel."""
     conteudo = ft.Column(
@@ -80,6 +82,55 @@ def criar_painel(
         "modo": "Dia",
         "busca": "",
     }
+
+    agenda_consulta = {
+        "chave": None,
+        "registros": [],
+        "carregando": False,
+        "erro": None,
+        "sequencia": 0,
+    }
+
+    def reservas_no_dia(dia):
+        return [
+            r for r in agenda_consulta["registros"]
+            if r.get("local_date") == dia.isoformat()
+        ]
+
+    def cartao_reserva(registro):
+        pessoa = (registro.get("customer") or {}).get("name") or "Cliente"
+        servico = (registro.get("service") or {}).get("name") or "Serviço"
+        profissional = (registro.get("professional") or {}).get("name") or "Profissional"
+        horario = str(registro.get("local_time") or "")[:5]
+        status = {
+            "scheduled": "Agendado",
+            "confirmed": "Confirmado",
+            "completed": "Concluído",
+            "canceled": "Cancelado",
+            "no_show": "Não compareceu",
+        }.get(registro.get("status"), "Agendado")
+        return ft.Container(
+            bgcolor=CARTAO,
+            border_radius=13,
+            padding=14,
+            content=ft.Column(
+                tight=True,
+                spacing=6,
+                controls=[
+                    ft.Row(controls=[
+                        ft.Text(horario, size=18, weight=ft.FontWeight.BOLD),
+                        ft.Container(expand=True),
+                        ft.Text(status, size=12, color=TEXTO_SECUNDARIO),
+                    ]),
+                    ft.Text(pessoa, size=15, weight=ft.FontWeight.BOLD),
+                    ft.Text(
+                        f"{servico} · {profissional}",
+                        size=12,
+                        color=TEXTO_SECUNDARIO,
+                    ),
+                ],
+            ),
+        )
 
     def mudar_modo_agenda(modo: str):
         agenda_estado["modo"] = modo
@@ -117,10 +168,21 @@ def criar_painel(
     def agendamento_indisponivel(evento):
         if dados_estabelecimento and dados_estabelecimento.get(
             "onboarding_completed"
+        ) and abrir_agendamento is not None:
+            indice = (
+                page.navigation_bar.selected_index
+                if page.navigation_bar is not None else 0
+            )
+            dia = (
+                agenda_estado["data"] if indice == 1
+                else dia_visivel["data"]
+            )
+            page.run_task(abrir_agendamento, dia)
+        elif dados_estabelecimento and dados_estabelecimento.get(
+            "onboarding_completed"
         ):
             mostrar_aviso(
-                "Estabelecimento ativado! O cadastro de agendamentos "
-                "internos será implementado na próxima fase."
+                "O cadastro de agendamentos estará disponível no APK."
             )
         else:
             mostrar_aviso(
@@ -240,6 +302,18 @@ def criar_painel(
             ),
         ]
 
+        carregando = agenda_consulta["carregando"]
+        erro = agenda_consulta["erro"]
+        if erro and buscar_agendamentos is not None:
+            controles.append(ft.Text(erro, size=12, color="#F3B5B5"))
+        elif carregando and buscar_agendamentos is not None:
+            controles.append(
+                ft.Text(
+                    "Carregando agenda do Supabase...",
+                    size=12, color=TEXTO_SECUNDARIO,
+                )
+            )
+
         if modo == "Mês":
             controles.append(
                 ft.Container(
@@ -256,10 +330,8 @@ def criar_painel(
                                     ft.Container(
                                         expand=True,
                                         content=ft.Text(
-                                            nome,
-                                            text_align=ft.TextAlign.CENTER,
-                                            size=11,
-                                            color=TEXTO_SECUNDARIO,
+                                            nome, text_align=ft.TextAlign.CENTER,
+                                            size=11, color=TEXTO_SECUNDARIO,
                                         ),
                                     )
                                     for nome in DIAS_CURTOS
@@ -275,21 +347,18 @@ def criar_painel(
                                             padding=8,
                                             border_radius=9,
                                             bgcolor=(
-                                                "#3E3E3E"
-                                                if numero == data.day
+                                                "#3E3E3E" if numero == data.day
                                                 else "transparent"
                                             ),
                                             content=ft.Text(
                                                 str(numero) if numero else "",
                                                 size=12,
                                                 text_align=ft.TextAlign.CENTER,
-                                                color=(
-                                                    "#EAEAEA"
-                                                    if numero else "#666666"
-                                                ),
+                                                color="#EAEAEA" if numero else "#666666",
                                             ),
                                             on_click=(
-                                                (lambda _, dia=numero: selecionar_dia_agenda(dia))
+                                                (lambda _, dia=numero:
+                                                    selecionar_dia_agenda(dia))
                                                 if numero else None
                                             ),
                                         )
@@ -304,17 +373,17 @@ def criar_painel(
                     ),
                 )
             )
-            controles.append(
-                ft.Text(
-                    "Toque em um dia para abrir a agenda. "
-                    "Não há reservas cadastradas.",
-                    size=12,
-                    color=TEXTO_SECUNDARIO,
-                )
-            )
+            if not carregando and not erro:
+                quantidade = len(agenda_consulta["registros"])
+                controles.append(ft.Text(
+                    f"{quantidade} agendamento(s) neste mês. "
+                    "Toque em um dia para ver detalhes.",
+                    size=12, color=TEXTO_SECUNDARIO,
+                ))
         elif modo == "Semana":
             for deslocamento in range(7):
                 dia = inicio_semana + timedelta(days=deslocamento)
+                quantidade = len(reservas_no_dia(dia))
                 controles.append(
                     ft.Container(
                         bgcolor=CARTAO,
@@ -324,53 +393,50 @@ def criar_painel(
                             controls=[
                                 ft.Text(
                                     f"{DIAS_CURTOS[dia.weekday()]}, {dia.day}",
-                                    size=14,
-                                    weight=ft.FontWeight.BOLD,
+                                    size=14, weight=ft.FontWeight.BOLD,
                                 ),
                                 ft.Container(expand=True),
                                 ft.Text(
-                                    "Sem agendamentos",
-                                    size=12,
-                                    color=TEXTO_SECUNDARIO,
+                                    f"{quantidade} agendamento(s)"
+                                    if not carregando and not erro else "Carregando",
+                                    size=12, color=TEXTO_SECUNDARIO,
                                 ),
                             ],
                         ),
-                        on_click=lambda _, escolhido=dia: abrir_dia_agenda(
-                            escolhido
-                        ),
+                        on_click=lambda _, escolhido=dia:
+                            abrir_dia_agenda(escolhido),
                     )
                 )
         else:
-            controles.append(
-                ft.Container(
-                    bgcolor=CARTAO,
-                    border_radius=14,
-                    padding=18,
-                    content=ft.Column(
-                        tight=True,
-                        spacing=8,
-                        controls=[
-                            ft.Icon(
-                                ft.Icons.EVENT_AVAILABLE,
-                                size=22,
-                                color="#A8A8A8",
-                            ),
-                            ft.Text(
-                                "Nenhum agendamento neste dia.",
-                                size=15,
-                                weight=ft.FontWeight.BOLD,
-                            ),
-                            ft.Text(
-                                "Assim que você cadastrar o estabelecimento "
-                                "e começar a agendar clientes, os horários "
-                                "aparecerão aqui.",
-                                size=12,
-                                color=TEXTO_SECUNDARIO,
-                            ),
-                        ],
-                    ),
+            reservas = reservas_no_dia(data)
+            if not carregando and not erro and reservas:
+                controles.extend(cartao_reserva(r) for r in reservas)
+            elif not carregando and not erro:
+                controles.append(
+                    ft.Container(
+                        bgcolor=CARTAO,
+                        border_radius=14,
+                        padding=18,
+                        content=ft.Column(
+                            tight=True,
+                            spacing=8,
+                            controls=[
+                                ft.Icon(
+                                    ft.Icons.EVENT_AVAILABLE,
+                                    size=22, color="#A8A8A8",
+                                ),
+                                ft.Text(
+                                    "Nenhum agendamento neste dia.",
+                                    size=15, weight=ft.FontWeight.BOLD,
+                                ),
+                                ft.Text(
+                                    "Toque em + para agendar seu primeiro atendimento.",
+                                    size=12, color=TEXTO_SECUNDARIO,
+                                ),
+                            ],
+                        ),
+                    )
                 )
-            )
 
         return controles
 
@@ -1607,7 +1673,62 @@ def criar_painel(
         pagina = mais_estado["pagina"]
         return criar_detalhe_mais(pagina) if pagina else criar_inicio_mais()
 
+    def intervalo_consulta(indice):
+        if indice == 0:
+            dia = dia_visivel["data"]
+            return dia, dia
+        dia = agenda_estado["data"]
+        if agenda_estado["modo"] == "Semana":
+            inicio = dia - timedelta(days=dia.weekday())
+            return inicio, inicio + timedelta(days=6)
+        if agenda_estado["modo"] == "Mês":
+            inicio = date(dia.year, dia.month, 1)
+            fim = date(
+                dia.year, dia.month,
+                calendar.monthrange(dia.year, dia.month)[1],
+            )
+            return inicio, fim
+        return dia, dia
+
+    async def carregar_consulta(chave, sequencia):
+        try:
+            registros = await buscar_agendamentos(*chave)
+            erro = None
+        except Exception as falha:
+            registros = []
+            erro = str(falha)
+        if sequencia != agenda_consulta["sequencia"]:
+            return
+        agenda_consulta["registros"] = registros
+        agenda_consulta["carregando"] = False
+        agenda_consulta["erro"] = erro
+        if page.navigation_bar is not None:
+            indice = page.navigation_bar.selected_index
+            if indice in (0, 1):
+                renderizar(indice)
+
+    def garantir_consulta(indice):
+        if buscar_agendamentos is None or not (
+            dados_estabelecimento
+            and dados_estabelecimento.get("onboarding_completed")
+        ):
+            return
+        inicio, fim = intervalo_consulta(indice)
+        chave = (inicio.isoformat(), fim.isoformat())
+        if chave == agenda_consulta["chave"]:
+            return
+        agenda_consulta["chave"] = chave
+        agenda_consulta["carregando"] = True
+        agenda_consulta["erro"] = None
+        agenda_consulta["registros"] = []
+        agenda_consulta["sequencia"] += 1
+        page.run_task(
+            carregar_consulta, chave, agenda_consulta["sequencia"]
+        )
+
     def renderizar(indice: int):
+        if indice in (0, 1):
+            garantir_consulta(indice)
         titulo = ABAS[indice][0]
         itens = []
 
@@ -1666,9 +1787,25 @@ def criar_painel(
                         content=ft.Row(
                             spacing=8,
                             controls=[
-                                resumo("—", "Agendamentos"),
-                                resumo("—", "A confirmar"),
-                                resumo("—", "Concluídos"),
+                                resumo(
+                                    str(len(reservas_no_dia(dia_visivel["data"])))
+                                    if not agenda_consulta["carregando"] else "—",
+                                    "Agendamentos",
+                                ),
+                                resumo(
+                                    str(sum(
+                                        1 for r in reservas_no_dia(dia_visivel["data"])
+                                        if r.get("status") == "scheduled"
+                                    )) if not agenda_consulta["carregando"] else "—",
+                                    "A confirmar",
+                                ),
+                                resumo(
+                                    str(sum(
+                                        1 for r in reservas_no_dia(dia_visivel["data"])
+                                        if r.get("status") == "completed"
+                                    )) if not agenda_consulta["carregando"] else "—",
+                                    "Concluídos",
+                                ),
                             ],
                         ),
                     ),
@@ -1713,26 +1850,29 @@ def criar_painel(
                             ),
                         ],
                     ),
-                    ft.Container(
-                        bgcolor=CARTAO,
-                        border_radius=12,
-                        padding=16,
-                        content=ft.Column(
-                            spacing=7,
-                            tight=True,
-                            controls=[
-                                ft.Text(
-                                    "Nenhum agendamento neste dia.",
-                                    size=14,
-                                ),
-                                ft.Text(
-                                    "Os agendamentos aparecerão aqui "
-                                    "após a configuração do negócio.",
-                                    size=12,
+                    *(
+                        [cartao_reserva(r) for r in reservas_no_dia(dia_visivel["data"])]
+                        if not agenda_consulta["carregando"]
+                        and not agenda_consulta["erro"]
+                        and reservas_no_dia(dia_visivel["data"])
+                        else [
+                            ft.Container(
+                                bgcolor=CARTAO,
+                                border_radius=12,
+                                padding=16,
+                                content=ft.Text(
+                                    (
+                                        agenda_consulta["erro"]
+                                        or "Carregando agenda..."
+                                        if agenda_consulta["carregando"]
+                                        or agenda_consulta["erro"]
+                                        else "Nenhum agendamento neste dia."
+                                    ),
+                                    size=13,
                                     color=TEXTO_SECUNDARIO,
                                 ),
-                            ],
-                        ),
+                            ),
+                        ]
                     ),
                     ft.Row(
                         alignment=ft.MainAxisAlignment.CENTER,
@@ -1867,7 +2007,21 @@ def criar_painel(
             mais_estado["pagina"] = None
         renderizar(evento.control.selected_index)
 
+    def abrir_agenda_na_data(data_iso):
+        try:
+            agenda_estado["data"] = date.fromisoformat(str(data_iso))
+        except ValueError:
+            agenda_estado["data"] = date.today()
+        agenda_estado["modo"] = "Dia"
+        agenda_consulta["chave"] = None
+        if page.navigation_bar is not None:
+            page.navigation_bar.selected_index = 1
+        renderizar(1)
+
     def mostrar_painel():
+        agenda_consulta["sequencia"] += 1
+        agenda_consulta["chave"] = None
+        agenda_consulta["registros"] = []
         if buscar_clientes is not None:
             # Não manter fichas da conta anterior ao trocar o login.
             clientes.clear()
@@ -1905,4 +2059,5 @@ def criar_painel(
         )
         renderizar(0)
 
+    mostrar_painel.abrir_agenda_na_data = abrir_agenda_na_data
     return mostrar_painel
