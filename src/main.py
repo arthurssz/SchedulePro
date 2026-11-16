@@ -426,8 +426,8 @@ async def main(page: ft.Page):
         )
 
     def atualizar_agenda_apos_salvar(registro):
-        # O painel já conhece o navegador e recarrega a agenda por callback.
-        mostrar_painel()
+        # Abre o dia realmente reservado e invalida os dados em cache.
+        mostrar_painel.abrir_agenda_na_data(registro["local_date"])
 
     async def entrar_no_painel():
         """Consulta o estabelecimento com o JWT antes de mostrar o painel."""
