@@ -248,3 +248,140 @@ def abrir_formulario_agendamento(
             ),
         ),
     ))
+
+
+
+def abrir_formulario_reagendamento(page, registro, salvar, ao_salvar):
+    """Altera apenas data e horário; mantém cliente, serviço e profissional."""
+    hoje = date.today()
+    data_original = date.fromisoformat(str(registro["local_date"]))
+    hora_original = time.fromisoformat(str(registro["local_time"]))
+    data_escolhida = {"valor": max(data_original, hoje)}
+    hora_escolhida = {"valor": hora_original}
+    aviso = ft.Text("", color="#F3B5B5", size=12)
+
+    def formatar_dia(dia):
+        return dia.strftime("%d/%m/%Y")
+
+    btn_data = ft.Button(
+        f"Data: {formatar_dia(data_escolhida['valor'])}",
+        icon=ft.Icons.CALENDAR_MONTH_OUTLINED,
+        bgcolor=CARTAO,
+        color="#EDEDED",
+    )
+    btn_hora = ft.Button(
+        f"Horário: {hora_escolhida['valor'].strftime('%H:%M')}",
+        icon=ft.Icons.SCHEDULE,
+        bgcolor=CARTAO,
+        color="#EDEDED",
+    )
+
+    def escolher_data(evento):
+        valor = evento.control.value
+        if valor is None:
+            return
+        data_escolhida["valor"] = (
+            valor.date() if isinstance(valor, datetime) else valor
+        )
+        btn_data.content = f"Data: {formatar_dia(data_escolhida['valor'])}"
+        page.update()
+
+    def escolher_hora(evento):
+        valor = evento.control.value
+        if valor is None:
+            return
+        hora_escolhida["valor"] = valor
+        btn_hora.content = f"Horário: {valor.strftime('%H:%M')}"
+        page.update()
+
+    calendario = ft.DatePicker(
+        first_date=datetime.combine(hoje, time.min),
+        last_date=datetime.combine(hoje + timedelta(days=365), time.min),
+        value=datetime.combine(data_escolhida["valor"], time.min),
+        current_date=datetime.combine(data_escolhida["valor"], time.min),
+        on_change=escolher_data,
+    )
+    relogio = ft.TimePicker(
+        value=hora_escolhida["valor"],
+        on_change=escolher_hora,
+        hour_format=ft.TimePickerHourFormat.H24,
+    )
+    btn_data.on_click = lambda _: page.show_dialog(calendario)
+    btn_hora.on_click = lambda _: page.show_dialog(relogio)
+
+    botao_salvar = ft.Button(
+        "Salvar nova data",
+        icon=ft.Icons.CHECK,
+        bgcolor="#F0F0F0",
+        color="#181818",
+    )
+
+    async def confirmar(evento):
+        botao_salvar.disabled = True
+        aviso.value = "Validando o novo horário no Supabase..."
+        page.update()
+        try:
+            resultado = await salvar(
+                registro["id"],
+                data_escolhida["valor"].isoformat(),
+                hora_escolhida["valor"].strftime("%H:%M"),
+            )
+        except Exception as erro:
+            botao_salvar.disabled = False
+            aviso.value = str(erro)
+            page.update()
+            return
+
+        page.pop_dialog()
+        ao_salvar(resultado)
+        page.show_dialog(
+            ft.SnackBar(
+                content=ft.Text("Agendamento reagendado com sucesso.")
+            )
+        )
+
+    botao_salvar.on_click = confirmar
+    page.show_dialog(
+        ft.BottomSheet(
+            scrollable=True,
+            show_drag_handle=True,
+            bgcolor=FUNDO,
+            content=ft.Container(
+                padding=ft.Padding.only(left=16,top=12,right=16,bottom=44),
+                content=ft.Column(
+                    tight=True,
+                    spacing=14,
+                    controls=[
+                        ft.Text("REAGENDAR ATENDIMENTO",size=11,color=CINZA),
+                        ft.Text("Alterar data e horário",size=22,weight=ft.FontWeight.BOLD),
+                        ft.Text(
+                            f"Atual: {formatar_dia(data_original)} às "
+                            f"{hora_original.strftime('%H:%M')}",
+                            size=14,
+                        ),
+                        ft.Text(
+                            "Cliente, serviço e profissional permanecem os mesmos. "
+                            "O histórico será preservado. "
+                            "Um atendimento confirmado volta a ficar pendente.",
+                            size=12,color=CINZA,
+                        ),
+                        ft.Column(
+                            tight=True,spacing=8,controls=[btn_data,btn_hora],
+                        ),
+                        aviso,
+                        ft.Row(
+                            spacing=8,
+                            alignment=ft.MainAxisAlignment.END,
+                            controls=[
+                                ft.TextButton(
+                                    "Voltar",
+                                    on_click=lambda _: page.pop_dialog(),
+                                ),
+                                botao_salvar,
+                            ],
+                        ),
+                    ],
+                ),
+            ),
+        )
+    )
