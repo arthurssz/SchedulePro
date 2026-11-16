@@ -84,6 +84,12 @@ def _pedir(token, caminho, dados=None):
                     "O serviço precisa terminar no mesmo dia.",
                     "Agendamentos são aceitos até 365 dias à frente.",
                     "Estabelecimento não ativo ou sem permissão.",
+                    "Agendamento não encontrado.",
+                    "Este agendamento já foi finalizado e não pode ser alterado.",
+                    "Somente agendamentos pendentes podem ser confirmados.",
+                    "Não é possível confirmar um horário que já começou.",
+                    "Aguarde o fim do horário para concluir o atendimento.",
+                    "Status solicitado inválido.",
                 )
                 if detalhe in permitidas:
                     mensagem = detalhe
@@ -128,7 +134,7 @@ def listar_agendamentos(token, estabelecimento_id, inicio, fim):
         "appointments?establishment_id=eq." + _id(estabelecimento_id)
         + "&local_date=gte." + dia_inicio.isoformat()
         + "&local_date=lte." + dia_fim.isoformat()
-        + "&select=id,local_date,local_time,price_cents,status,notes,"
+        + "&select=id,local_date,local_time,starts_at,ends_at,price_cents,status,notes,"
         + "customer:customers(name),professional:professionals(name),"
         + "service:services(name,duration_minutes)"
         + "&order=local_date.asc,local_time.asc&limit=500"
@@ -137,3 +143,30 @@ def listar_agendamentos(token, estabelecimento_id, inicio, fim):
     if not isinstance(registros, list):
         raise ErroEstabelecimento("Lista de agendamentos inválida.")
     return registros
+
+
+STATUS_EDITAVEIS = frozenset(("confirmed", "completed", "canceled"))
+
+
+def alterar_status_agendamento(token, estabelecimento_id, agendamento_id, status):
+    """Altera a situação via RPC segura; nunca permite PATCH direto do APK."""
+    if status not in STATUS_EDITAVEIS:
+        raise ErroEstabelecimento("Situação de agendamento inválida.")
+    parametros = {
+        "p_establishment_id": _id(estabelecimento_id),
+        "p_appointment_id": _id(agendamento_id),
+        "p_new_status": status,
+    }
+    resposta = _pedir(
+        token, "rpc/schedulepro_change_appointment_status",
+        dados=parametros,
+    )
+    if not isinstance(resposta, dict) or not resposta.get("id"):
+        raise ErroEstabelecimento(
+            "O servidor não confirmou a atualização do agendamento."
+        )
+    if resposta.get("status") != status:
+        raise ErroEstabelecimento(
+            "O servidor retornou uma situação diferente da solicitada."
+        )
+    return resposta
