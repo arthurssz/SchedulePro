@@ -61,6 +61,10 @@ def criar_painel(
     abrir_servicos=None,
     abrir_profissionais=None,
     abrir_revisao=None,
+    buscar_clientes=None,
+    persistir_cliente=None,
+    alterar_arquivo_cliente=None,
+    remover_cliente_real=None,
 ):
     """Prepara a navegação e retorna a função que abre o painel."""
     conteudo = ft.Column(
@@ -465,6 +469,8 @@ def criar_painel(
         "proximo_id": 1,
     }
     clientes_lista = {"controle": None}
+    clientes_contagem = {"controle": None}
+    clientes_estado["carregando"] = False
     FILTROS_CLIENTES = (
         "Ativos",
         "Arquivados",
@@ -478,6 +484,35 @@ def criar_painel(
         "Última atividade",
         "Mais atendimentos",
     )
+
+    async def carregar_clientes_autenticados():
+        """Atualiza somente os dados da conta autenticada (sem mock)."""
+        if buscar_clientes is None or clientes_estado["carregando"]:
+            return
+        clientes_estado["carregando"] = True
+        try:
+            linhas = await buscar_clientes()
+            clientes[:] = [
+                {
+                    "id": item["id"],
+                    "nome": item.get("name") or "",
+                    "telefone": item.get("phone") or "",
+                    "email": item.get("email") or "",
+                    "observacoes": item.get("notes") or "",
+                    "arquivado": bool(item.get("is_archived")),
+                    "atendimentos": 0,
+                    "criado_em": item.get("created_at") or "",
+                    "ultima_atividade": item.get("updated_at") or "",
+                }
+                for item in linhas
+            ]
+            atualizar_lista_clientes()
+        except Exception as falha:
+            clientes.clear()
+            atualizar_lista_clientes()
+            mostrar_aviso(str(falha))
+        finally:
+            clientes_estado["carregando"] = False
 
     def iniciais_cliente(nome: str) -> str:
         partes = nome.split()
@@ -529,7 +564,9 @@ def criar_painel(
         elif ordem == "Z–A":
             encontrados.sort(key=lambda c: c["nome"].casefold(), reverse=True)
         elif ordem == "Cadastro recente":
-            encontrados.sort(key=lambda c: c["id"], reverse=True)
+            encontrados.sort(
+                key=lambda c: str(c["criado_em"]), reverse=True
+            )
         elif ordem == "Última atividade":
             encontrados.sort(key=lambda c: c["ultima_atividade"], reverse=True)
         elif ordem == "Mais atendimentos":
@@ -644,6 +681,11 @@ def criar_painel(
                 )
             )
         lista.controls = controles
+        contagem = clientes_contagem["controle"]
+        if contagem is not None:
+            contagem.value = f"{len(encontrados)} " + (
+                "cliente" if len(encontrados) == 1 else "clientes"
+            )
         page.update()
 
     def mostrar_mais_clientes(evento):
@@ -663,6 +705,13 @@ def criar_painel(
         lista = ft.Column(spacing=0, tight=True)
         clientes_lista["controle"] = lista
         encontrados = clientes_visiveis()
+        contagem_texto = ft.Text(
+            f"{len(encontrados)} " +
+            ("cliente" if len(encontrados) == 1 else "clientes"),
+            size=12,
+            color=TEXTO_SECUNDARIO,
+        )
+        clientes_contagem["controle"] = contagem_texto
         # O contêiner vazio usa a mesma centralização do filtro de busca.
         lista.controls = [estado_vazio_clientes()] if not encontrados else []
         return [
@@ -786,17 +835,14 @@ def criar_painel(
                         ],
                     ),
                     ft.Container(expand=True),
-                    ft.Text(
-                        f"{len(encontrados)} " +
-                        ("cliente" if len(encontrados) == 1 else "clientes"),
-                        size=12,
-                        color=TEXTO_SECUNDARIO,
-                    ),
+                    contagem_texto,
                 ],
             ),
             ft.Divider(height=2, color="#2A2A2A"),
             lista,
             ft.Text(
+                "Cadastros privados armazenados no Supabase."
+                if buscar_clientes is not None else
                 "PRÉVIA: cadastros temporários, não salvos. "
                 "Não utilize dados reais de clientes.",
                 size=11,
@@ -862,7 +908,7 @@ def criar_painel(
         )
         erro = ft.Text("", color="#F0B5B5", size=12)
 
-        def salvar(evento):
+        async def salvar(evento):
             novo_nome = (nome.value or "").strip()
             novo_telefone = (telefone.value or "").strip()
             digitos = "".join(c for c in novo_telefone if c.isdigit())
@@ -914,6 +960,25 @@ def criar_painel(
                 )
                 page.update()
                 return
+            if persistir_cliente is not None:
+                try:
+                    await persistir_cliente(
+                        {
+                            "name": novo_nome,
+                            "phone": novo_telefone,
+                            "email": novo_email,
+                            "notes": observacoes.value or "",
+                        },
+                        cliente_id,
+                    )
+                except Exception as falha:
+                    erro.value = str(falha)
+                    page.update()
+                    return
+                page.pop_dialog()
+                await carregar_clientes_autenticados()
+                mostrar_aviso("Cliente salvo no Supabase.")
+                return
             if cliente:
                 cliente.update(
                     nome=novo_nome,
@@ -957,6 +1022,8 @@ def criar_painel(
                                 weight=ft.FontWeight.BOLD,
                             ),
                             ft.Text(
+                                "Dados privados, salvos na sua conta."
+                                if persistir_cliente is not None else
                                 "Dados de demonstração: não serão enviados "
                                 "ao Supabase.",
                                 size=12,
@@ -997,7 +1064,19 @@ def criar_painel(
             page.pop_dialog()
             abrir_form_cliente(cid)
 
-        def acao_arquivar(evento):
+        async def acao_arquivar(evento):
+            if alterar_arquivo_cliente is not None:
+                try:
+                    await alterar_arquivo_cliente(
+                        cid, not cliente["arquivado"]
+                    )
+                except Exception as falha:
+                    mostrar_aviso(str(falha))
+                    return
+                page.pop_dialog()
+                await carregar_clientes_autenticados()
+                mostrar_aviso("Status do cliente atualizado no Supabase.")
+                return
             cliente["arquivado"] = not cliente["arquivado"]
             page.pop_dialog()
             renderizar(2)
@@ -1012,8 +1091,12 @@ def criar_painel(
             page.show_dialog(
                 ft.AlertDialog(
                     modal=True,
-                    title=ft.Text("Excluir cadastro de demonstração?"),
+                    title=ft.Text("Excluir cadastro de cliente?"),
                     content=ft.Text(
+                        "Esta ação apaga definitivamente o cadastro. "
+                        "Se houver agendamentos vinculados, "
+                        "a exclusão será impedida."
+                        if remover_cliente_real is not None else
                         "Esta ação apaga definitivamente este cadastro "
                         "temporário. Deseja continuar?"
                     ),
@@ -1032,7 +1115,17 @@ def criar_painel(
                 )
             )
 
-        def remover_cliente(evento):
+        async def remover_cliente(evento):
+            if remover_cliente_real is not None:
+                try:
+                    await remover_cliente_real(cid)
+                except Exception as falha:
+                    mostrar_aviso(str(falha))
+                    return
+                page.pop_dialog()
+                await carregar_clientes_autenticados()
+                mostrar_aviso("Cliente excluído do Supabase.")
+                return
             clientes[:] = [c for c in clientes if c["id"] != cid]
             page.pop_dialog()
             renderizar(2)
@@ -1230,6 +1323,8 @@ def criar_painel(
                 ),
             ),
             ft.Text(
+                "Ficha salva no Supabase."
+                if buscar_clientes is not None else
                 "PRÉVIA: informações de teste não são persistidas.",
                 size=11,
                 color=TEXTO_SECUNDARIO,
@@ -1762,7 +1857,10 @@ def criar_painel(
         conteudo.controls = itens
         page.update()
         if indice == 2:
-            atualizar_lista_clientes()
+            if buscar_clientes is not None:
+                page.run_task(carregar_clientes_autenticados)
+            else:
+                atualizar_lista_clientes()
 
     def mudar_aba(evento):
         if evento.control.selected_index != 3:
@@ -1770,6 +1868,9 @@ def criar_painel(
         renderizar(evento.control.selected_index)
 
     def mostrar_painel():
+        if buscar_clientes is not None:
+            # Não manter fichas da conta anterior ao trocar o login.
+            clientes.clear()
         page.controls.clear()
         page.navigation_bar = ft.NavigationBar(
             selected_index=0,
