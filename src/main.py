@@ -25,6 +25,9 @@ from activation_api import (
     ativar_estabelecimento,
 )
 from activation_form import abrir_revisao_estabelecimento
+from customers_api import (
+    listar_clientes, salvar_cliente, arquivar_cliente, excluir_cliente,
+)
 
 from auth_flow import (
     SessaoInvalida,
@@ -346,6 +349,39 @@ async def main(page: ft.Page):
             ativar, ativado,
         )
 
+    def credenciais_clientes():
+        token = usuario.get("access_token")
+        negocio_id = estado_estabelecimento.get("id")
+        if not consulta_estabelecimento["ok"] or not token or not negocio_id:
+            raise ErroEstabelecimento(
+                "Entre com Google e configure o estabelecimento primeiro."
+            )
+        return token, negocio_id
+
+    async def obter_clientes_reais():
+        token, negocio_id = credenciais_clientes()
+        return await asyncio.to_thread(
+            listar_clientes, token, negocio_id
+        )
+
+    async def gravar_cliente_real(formulario, cliente_id=None):
+        token, negocio_id = credenciais_clientes()
+        return await asyncio.to_thread(
+            salvar_cliente, token, negocio_id, formulario, cliente_id
+        )
+
+    async def alterar_cliente_real(cliente_id, arquivar):
+        token, negocio_id = credenciais_clientes()
+        return await asyncio.to_thread(
+            arquivar_cliente, token, negocio_id, cliente_id, arquivar
+        )
+
+    async def excluir_cliente_real(cliente_id):
+        token, negocio_id = credenciais_clientes()
+        return await asyncio.to_thread(
+            excluir_cliente, token, negocio_id, cliente_id
+        )
+
     async def entrar_no_painel():
         """Consulta o estabelecimento com o JWT antes de mostrar o painel."""
         consulta_estabelecimento["ok"] = False
@@ -529,6 +565,10 @@ async def main(page: ft.Page):
         abrir_servicos=abrir_servicos,
         abrir_profissionais=abrir_profissionais,
         abrir_revisao=abrir_revisao,
+        buscar_clientes=obter_clientes_reais,
+        persistir_cliente=gravar_cliente_real,
+        alterar_arquivo_cliente=alterar_cliente_real,
+        remover_cliente_real=excluir_cliente_real,
     )
     page.on_route_change = ao_mudar_rota
     mostrar_login()
