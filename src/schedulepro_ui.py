@@ -3,7 +3,7 @@
 Manter a interface neste módulo evita dois designs divergentes.
 NÃO há autenticação nem acesso a dados privados nesta camada.
 """
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 import calendar
 import flet as ft
 
@@ -67,6 +67,7 @@ def criar_painel(
     remover_cliente_real=None,
     abrir_agendamento=None,
     buscar_agendamentos=None,
+    alterar_status_agendamento=None,
 ):
     """Prepara a navegação e retorna a função que abre o painel."""
     conteudo = ft.Column(
@@ -97,6 +98,220 @@ def criar_painel(
             if r.get("local_date") == dia.isoformat()
         ]
 
+    def abrir_detalhes_reserva(registro):
+        """Painel único para gerenciar o status real da reserva."""
+        status_atual = registro.get("status") or "scheduled"
+        rotulos = {
+            "scheduled": "Agendado",
+            "confirmed": "Confirmado",
+            "completed": "Concluído",
+            "canceled": "Cancelado",
+            "no_show": "Não compareceu",
+        }
+        cliente = (registro.get("customer") or {}).get("name") or "Cliente"
+        servico = (registro.get("service") or {}).get("name") or "Serviço"
+        profissional = (
+            (registro.get("professional") or {}).get("name") or "Profissional"
+        )
+        data_str = str(registro.get("local_date") or "")
+        hora_str = str(registro.get("local_time") or "")[:5]
+        preco = int(registro.get("price_cents") or 0)
+        try:
+            termino = datetime.fromisoformat(
+                str(registro.get("ends_at") or "").replace("Z", "+00:00")
+            )
+            horario_terminou = (
+                termino.tzinfo is not None
+                and termino <= datetime.now(timezone.utc)
+            )
+        except (ValueError, TypeError):
+            horario_terminou = False
+
+        aviso = ft.Text("", size=12, color="#F3B5B5")
+        botoes = []
+
+        async def aplicar_status(novo_status):
+            if alterar_status_agendamento is None:
+                mostrar_aviso("Gerenciamento disponível no APK autenticado.")
+                return
+            for botao in botoes:
+                botao.disabled = True
+            aviso.value = "Atualizando o agendamento no Supabase..."
+            page.update()
+            try:
+                await alterar_status_agendamento(registro["id"], novo_status)
+            except Exception as falha:
+                aviso.value = str(falha)
+                for botao in botoes:
+                    botao.disabled = False
+                page.update()
+                return
+            page.pop_dialog()
+            agenda_consulta["sequencia"] += 1
+            agenda_consulta["chave"] = None
+            aba = (
+                page.navigation_bar.selected_index
+                if page.navigation_bar is not None else 1
+            )
+            renderizar(aba)
+            mensagem = {
+                "confirmed": "Agendamento confirmado!",
+                "completed": "Atendimento concluído!",
+                "canceled": "Agendamento cancelado.",
+            }
+            mostrar_aviso(mensagem.get(novo_status, "Agendamento atualizado."))
+
+        async def confirmar(evento):
+            await aplicar_status("confirmed")
+
+        async def concluir(evento):
+            await aplicar_status("completed")
+
+        async def confirmar_cancelamento(evento):
+            page.pop_dialog()
+            await aplicar_status("canceled")
+
+        def pedir_cancelamento(evento):
+            page.show_dialog(
+                ft.AlertDialog(
+                    modal=True,
+                    title=ft.Text("Cancelar agendamento?"),
+                    content=ft.Text(
+                        "O atendimento será marcado como cancelado "
+                        "e o horário ficará disponível novamente. "
+                        "O registro será preservado no histórico."
+                    ),
+                    actions=[
+                        ft.TextButton(
+                            "Voltar",
+                            on_click=lambda _: page.pop_dialog(),
+                        ),
+                        ft.Button(
+                            "Sim, cancelar",
+                            bgcolor="#482525",
+                            color="#F5DEDE",
+                            on_click=confirmar_cancelamento,
+                        ),
+                    ],
+                )
+            )
+
+        if status_atual == "scheduled":
+            botoes.append(
+                ft.Button(
+                    "Confirmar",
+                    icon=ft.Icons.CHECK_CIRCLE_OUTLINE,
+                    bgcolor="#F0F0F0",
+                    color="#171717",
+                    on_click=confirmar,
+                )
+            )
+        if status_atual in ("scheduled", "confirmed"):
+            if horario_terminou:
+                botoes.append(
+                    ft.Button(
+                        "Concluir",
+                        icon=ft.Icons.DONE_ALL,
+                        bgcolor="#292929",
+                        color="#F0F0F0",
+                        on_click=concluir,
+                    )
+                )
+            botoes.append(
+                ft.Button(
+                    "Cancelar agendamento",
+                    bgcolor="#292929",
+                    color="#EAB5B5",
+                    on_click=pedir_cancelamento,
+                )
+            )
+
+        detalhes = [
+            ft.Text(
+                "DETALHES DO AGENDAMENTO",
+                size=11,
+                color=TEXTO_SECUNDARIO,
+            ),
+            ft.Text(
+                f"{data_str[8:10]}/{data_str[5:7]}/{data_str[:4]} · {hora_str}",
+                size=21,
+                weight=ft.FontWeight.BOLD,
+            ),
+            ft.Text(
+                rotulos.get(status_atual, "Agendado"),
+                size=13,
+                color=TEXTO_SECUNDARIO,
+            ),
+            ft.Container(
+                bgcolor=CARTAO,
+                border_radius=13,
+                padding=14,
+                content=ft.Column(
+                    tight=True,
+                    spacing=10,
+                    controls=[
+                        ft.Text(f"Cliente: {cliente}", size=14),
+                        ft.Text(f"Serviço: {servico}", size=14),
+                        ft.Text(f"Profissional: {profissional}", size=14),
+                        ft.Text(
+                            "Valor: R$ "
+                            + f"{preco // 100:,}".replace(",", ".")
+                            + f",{preco % 100:02d}",
+                            size=14,
+                        ),
+                        ft.Text(
+                            "Observações: "
+                            + (registro.get("notes") or "Nenhuma"),
+                            size=12,
+                            color=TEXTO_SECUNDARIO,
+                        ),
+                    ],
+                ),
+            ),
+        ]
+        if status_atual in ("scheduled", "confirmed") and not horario_terminou:
+            detalhes.append(
+                ft.Text(
+                    "Concluir ficará disponível após o fim do atendimento.",
+                    size=12,
+                    color=TEXTO_SECUNDARIO,
+                )
+            )
+        detalhes.append(aviso)
+        if botoes:
+            detalhes.extend(botoes)
+        else:
+            detalhes.append(
+                ft.Text(
+                    "Este agendamento está finalizado.",
+                    color=TEXTO_SECUNDARIO,
+                    size=12,
+                )
+            )
+        detalhes.append(
+            ft.TextButton(
+                "Fechar",
+                on_click=lambda _: page.pop_dialog(),
+            )
+        )
+        page.show_dialog(
+            ft.BottomSheet(
+                scrollable=True,
+                show_drag_handle=True,
+                bgcolor=FUNDO,
+                content=ft.Container(
+                    padding=ft.Padding.only(
+                        left=16, top=12, right=16, bottom=44,
+                    ),
+                    content=ft.Column(
+                        tight=True,
+                        spacing=12,
+                        controls=detalhes,
+                    ),
+                ),
+            )
+        )
+
     def cartao_reserva(registro):
         pessoa = (registro.get("customer") or {}).get("name") or "Cliente"
         servico = (registro.get("service") or {}).get("name") or "Serviço"
@@ -113,6 +328,7 @@ def criar_painel(
             bgcolor=CARTAO,
             border_radius=13,
             padding=14,
+            on_click=lambda _, r=registro: abrir_detalhes_reserva(r),
             content=ft.Column(
                 tight=True,
                 spacing=6,
@@ -126,6 +342,11 @@ def criar_painel(
                     ft.Text(
                         f"{servico} · {profissional}",
                         size=12,
+                        color=TEXTO_SECUNDARIO,
+                    ),
+                    ft.Text(
+                        "Toque para gerenciar",
+                        size=11,
                         color=TEXTO_SECUNDARIO,
                     ),
                 ],
