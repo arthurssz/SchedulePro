@@ -90,6 +90,9 @@ def _pedir(token, caminho, dados=None):
                     "Não é possível confirmar um horário que já começou.",
                     "Aguarde o fim do horário para concluir o atendimento.",
                     "Status solicitado inválido.",
+                    "Data ou horário inválido.",
+                    "Não é possível reagendar um atendimento que já começou.",
+                    "Escolha uma data ou horário diferente do atual.",
                 )
                 if detalhe in permitidas:
                     mensagem = detalhe
@@ -169,4 +172,57 @@ def alterar_status_agendamento(token, estabelecimento_id, agendamento_id, status
         raise ErroEstabelecimento(
             "O servidor retornou uma situação diferente da solicitada."
         )
+    return resposta
+
+
+def reagendar_agendamento(
+    token, estabelecimento_id, agendamento_id, nova_data, novo_horario,
+):
+    """Move um agendamento ativo de forma atômica, com auditoria no Postgres."""
+    try:
+        dia = date.fromisoformat(str(nova_data))
+        hora = time.fromisoformat(str(novo_horario))
+    except (ValueError, TypeError) as erro:
+        raise ErroEstabelecimento(
+            "Informe data e horário válidos para o reagendamento."
+        ) from erro
+    if hora.second or hora.microsecond or hora.tzinfo:
+        raise ErroEstabelecimento("Informe o horário no formato HH:MM.")
+    identificador = _id(agendamento_id)
+    resposta = _pedir(
+        token,
+        "rpc/schedulepro_reschedule_internal_appointment",
+        dados={
+            "p_establishment_id": _id(estabelecimento_id),
+            "p_appointment_id": identificador,
+            "p_new_local_date": dia.isoformat(),
+            "p_new_local_time": hora.strftime("%H:%M"),
+        },
+    )
+    if (
+        not isinstance(resposta, dict)
+        or resposta.get("id") != identificador
+        or resposta.get("status") != "scheduled"
+    ):
+        raise ErroEstabelecimento(
+            "O servidor não confirmou o reagendamento."
+        )
+    return resposta
+
+
+def listar_historico_reagendamentos(
+    token, estabelecimento_id, agendamento_id,
+):
+    """Histórico visível apenas para o dono autenticado via RLS."""
+    caminho = (
+        "appointment_reschedule_history?"
+        + "establishment_id=eq." + _id(estabelecimento_id)
+        + "&appointment_id=eq." + _id(agendamento_id)
+        + "&select=old_local_date,old_local_time,new_local_date,"
+        + "new_local_time,old_status,changed_at"
+        + "&order=changed_at.desc&limit=50"
+    )
+    resposta = _pedir(token, caminho)
+    if not isinstance(resposta, list):
+        raise ErroEstabelecimento("Histórico inválido.")
     return resposta
