@@ -27,8 +27,11 @@ from activation_api import (
 from activation_form import abrir_revisao_estabelecimento
 from appointments_api import (
     criar_agendamento, listar_agendamentos, alterar_status_agendamento,
+    reagendar_agendamento, listar_historico_reagendamentos,
 )
-from appointments_form import abrir_formulario_agendamento
+from appointments_form import (
+    abrir_formulario_agendamento, abrir_formulario_reagendamento,
+)
 from customers_api import (
     listar_clientes, salvar_cliente, arquivar_cliente, excluir_cliente,
 )
@@ -405,6 +408,30 @@ async def main(page: ft.Page):
             token, negocio_id, agendamento_id, status,
         )
 
+    async def reagendar_agendamento_real(agendamento_id, dia, horario):
+        token, negocio_id = credenciais_clientes()
+        if not estado_estabelecimento.get("onboarding_completed"):
+            raise ErroEstabelecimento(
+                "Ative o estabelecimento antes de reagendar."
+            )
+        return await asyncio.to_thread(
+            reagendar_agendamento,
+            token, negocio_id, agendamento_id, dia, horario,
+        )
+
+    async def listar_historico_reagendamento_real(agendamento_id):
+        token, negocio_id = credenciais_clientes()
+        return await asyncio.to_thread(
+            listar_historico_reagendamentos,
+            token, negocio_id, agendamento_id,
+        )
+
+    def abrir_reagendamento_real(registro):
+        abrir_formulario_reagendamento(
+            page, registro, reagendar_agendamento_real,
+            atualizar_agenda_apos_salvar,
+        )
+
     async def abrir_agendamento_real(data_inicial=None):
         try:
             token, negocio_id = credenciais_clientes()
@@ -632,6 +659,8 @@ async def main(page: ft.Page):
         abrir_agendamento=abrir_agendamento_real,
         buscar_agendamentos=obter_agendamentos_reais,
         alterar_status_agendamento=alterar_status_agendamento_real,
+        abrir_reagendamento=abrir_reagendamento_real,
+        listar_historico_reagendamento=listar_historico_reagendamento_real,
     )
     page.on_route_change = ao_mudar_rota
     mostrar_login()
