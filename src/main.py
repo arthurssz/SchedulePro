@@ -25,6 +25,8 @@ from activation_api import (
     ativar_estabelecimento,
 )
 from activation_form import abrir_revisao_estabelecimento
+from appointments_api import criar_agendamento, listar_agendamentos
+from appointments_form import abrir_formulario_agendamento
 from customers_api import (
     listar_clientes, salvar_cliente, arquivar_cliente, excluir_cliente,
 )
@@ -382,6 +384,51 @@ async def main(page: ft.Page):
             excluir_cliente, token, negocio_id, cliente_id
         )
 
+    async def obter_agendamentos_reais(inicio, fim):
+        token, negocio_id = credenciais_clientes()
+        if not estado_estabelecimento.get("onboarding_completed"):
+            return []
+        return await asyncio.to_thread(
+            listar_agendamentos, token, negocio_id, inicio, fim
+        )
+
+    async def abrir_agendamento_real(data_inicial=None):
+        try:
+            token, negocio_id = credenciais_clientes()
+            if not estado_estabelecimento.get("onboarding_completed"):
+                raise ErroEstabelecimento(
+                    "Ative o estabelecimento antes de agendar."
+                )
+            clientes, servicos, profissionais = await asyncio.gather(
+                asyncio.to_thread(
+                    listar_clientes, token, negocio_id
+                ),
+                asyncio.to_thread(
+                    listar_servicos, token, negocio_id
+                ),
+                asyncio.to_thread(
+                    listar_profissionais, token, negocio_id
+                ),
+            )
+        except Exception as erro:
+            page.show_dialog(ft.SnackBar(content=ft.Text(str(erro))))
+            return
+
+        async def gravar(dados):
+            token_atual, negocio_atual = credenciais_clientes()
+            return await asyncio.to_thread(
+                criar_agendamento, token_atual, negocio_atual, dados
+            )
+
+        abrir_formulario_agendamento(
+            page, clientes, servicos, profissionais,
+            gravar, atualizar_agenda_apos_salvar, data_inicial,
+        )
+
+    def atualizar_agenda_apos_salvar(registro):
+        # O painel já conhece o navegador e recarrega a agenda por callback.
+        mostrar_painel()
+
     async def entrar_no_painel():
         """Consulta o estabelecimento com o JWT antes de mostrar o painel."""
         consulta_estabelecimento["ok"] = False
@@ -569,6 +616,8 @@ async def main(page: ft.Page):
         persistir_cliente=gravar_cliente_real,
         alterar_arquivo_cliente=alterar_cliente_real,
         remover_cliente_real=excluir_cliente_real,
+        abrir_agendamento=abrir_agendamento_real,
+        buscar_agendamentos=obter_agendamentos_reais,
     )
     page.on_route_change = ao_mudar_rota
     mostrar_login()
