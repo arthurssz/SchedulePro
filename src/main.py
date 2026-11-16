@@ -25,7 +25,9 @@ from activation_api import (
     ativar_estabelecimento,
 )
 from activation_form import abrir_revisao_estabelecimento
-from appointments_api import criar_agendamento, listar_agendamentos
+from appointments_api import (
+    criar_agendamento, listar_agendamentos, alterar_status_agendamento,
+)
 from appointments_form import abrir_formulario_agendamento
 from customers_api import (
     listar_clientes, salvar_cliente, arquivar_cliente, excluir_cliente,
@@ -392,6 +394,17 @@ async def main(page: ft.Page):
             listar_agendamentos, token, negocio_id, inicio, fim
         )
 
+    async def alterar_status_agendamento_real(agendamento_id, status):
+        token, negocio_id = credenciais_clientes()
+        if not estado_estabelecimento.get("onboarding_completed"):
+            raise ErroEstabelecimento(
+                "Ative o estabelecimento antes de alterar agendamentos."
+            )
+        return await asyncio.to_thread(
+            alterar_status_agendamento,
+            token, negocio_id, agendamento_id, status,
+        )
+
     async def abrir_agendamento_real(data_inicial=None):
         try:
             token, negocio_id = credenciais_clientes()
@@ -618,6 +631,7 @@ async def main(page: ft.Page):
         remover_cliente_real=excluir_cliente_real,
         abrir_agendamento=abrir_agendamento_real,
         buscar_agendamentos=obter_agendamentos_reais,
+        alterar_status_agendamento=alterar_status_agendamento_real,
     )
     page.on_route_change = ao_mudar_rota
     mostrar_login()
