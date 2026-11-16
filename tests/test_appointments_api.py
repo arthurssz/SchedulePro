@@ -87,6 +87,50 @@ class TestAppointments(unittest.TestCase):
             self.assertIn("local_date=gte.2026-11-23", caminho)
             self.assertIn("local_date=lte.2026-11-29", caminho)
 
+    def test_status_valido_usa_rpc_autenticada(self):
+        with patch.object(
+            api, "_pedir",
+            return_value={"id": CLIENT, "status": "confirmed"},
+        ) as pedido:
+            resultado = api.alterar_status_agendamento(
+                "jwt-do-usuario", BUSINESS, CLIENT, "confirmed"
+            )
+        self.assertEqual(resultado["status"], "confirmed")
+        self.assertEqual(
+            pedido.call_args.args[1],
+            "rpc/schedulepro_change_appointment_status",
+        )
+        self.assertEqual(
+            pedido.call_args.kwargs["dados"]["p_establishment_id"],
+            BUSINESS,
+        )
+        self.assertEqual(
+            pedido.call_args.kwargs["dados"]["p_appointment_id"],
+            CLIENT,
+        )
+
+    def test_nao_permite_status_fora_do_fluxo(self):
+        with patch.object(api, "_pedir") as pedido:
+            for status in (
+                "scheduled", "no_show", "inventado", "", None,
+            ):
+                with self.subTest(status=status):
+                    with self.assertRaises(ErroEstabelecimento):
+                        api.alterar_status_agendamento(
+                            "jwt-do-usuario", BUSINESS, CLIENT, status
+                        )
+            pedido.assert_not_called()
+
+    def test_status_exige_confirmacao_remota(self):
+        with patch.object(
+            api, "_pedir",
+            return_value={"id": CLIENT, "status": "canceled"},
+        ):
+            with self.assertRaises(ErroEstabelecimento):
+                api.alterar_status_agendamento(
+                    "jwt-do-usuario", BUSINESS, CLIENT, "confirmed"
+                )
+
     def test_filtro_tem_periodo_limitado(self):
         with patch.object(api, "_pedir") as pedir:
             with self.assertRaises(ErroEstabelecimento):
