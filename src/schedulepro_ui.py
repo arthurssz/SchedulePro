@@ -7,6 +7,8 @@ from datetime import date, datetime, timedelta, timezone
 import calendar
 import flet as ft
 
+from appointment_filters import FILTROS_STATUS, filtrar_status_agenda
+
 
 FUNDO = "#111111"
 CARTAO = "#1D1D1D"
@@ -84,6 +86,7 @@ def criar_painel(
         "data": date.today(),
         "modo": "Dia",
         "busca": "",
+        "filtro_status": "todos",
     }
 
     agenda_consulta = {
@@ -99,6 +102,25 @@ def criar_painel(
             r for r in agenda_consulta["registros"]
             if r.get("local_date") == dia.isoformat()
         ]
+
+    def reservas_filtradas():
+        return filtrar_status_agenda(
+            agenda_consulta["registros"],
+            agenda_estado["filtro_status"],
+        )
+
+    def reservas_filtradas_no_dia(dia):
+        return [
+            r for r in reservas_filtradas()
+            if r.get("local_date") == dia.isoformat()
+        ]
+
+    def selecionar_status_agenda(evento):
+        novo_status = evento.control.value or "todos"
+        if novo_status == agenda_estado["filtro_status"]:
+            return
+        agenda_estado["filtro_status"] = novo_status
+        renderizar(1)
 
     def abrir_detalhes_reserva(registro):
         """Painel único para gerenciar o status real da reserva."""
@@ -557,8 +579,8 @@ def criar_painel(
                         icon=ft.Icons.TUNE,
                         tooltip="Filtros avançados",
                         on_click=lambda _: mostrar_aviso(
-                            "Os filtros por profissional, serviço e status "
-                            "serão ativados com os cadastros."
+                            "O filtro de status já está disponível abaixo. "
+                            "Filtros por profissional e serviço serão adicionados depois."
                         ),
                     ),
                     ft.IconButton(
@@ -617,15 +639,19 @@ def criar_painel(
                 ],
             ),
             ft.Row(
+                spacing=12,
                 controls=[
-                    ft.Text("Profissional", size=13, color=TEXTO_SECUNDARIO),
-                    ft.Button(
-                        "Todos",
+                    ft.Text("Status", size=13, color=TEXTO_SECUNDARIO),
+                    ft.Dropdown(
+                        expand=True,
+                        value=agenda_estado["filtro_status"],
+                        options=[
+                            ft.DropdownOption(key=chave, text=rotulo)
+                            for chave, rotulo in FILTROS_STATUS
+                        ],
                         bgcolor=CARTAO,
-                        color="#ECECEC",
-                        on_click=lambda _: mostrar_aviso(
-                            "Ainda não há profissionais cadastrados."
-                        ),
+                        border_color="#3D3D3D",
+                        on_select=selecionar_status_agenda,
                     ),
                 ],
             ),
@@ -703,7 +729,7 @@ def criar_painel(
                 )
             )
             if not carregando and not erro:
-                quantidade = len(agenda_consulta["registros"])
+                quantidade = len(reservas_filtradas())
                 controles.append(ft.Text(
                     f"{quantidade} agendamento(s) neste mês. "
                     "Toque em um dia para ver detalhes.",
@@ -712,7 +738,7 @@ def criar_painel(
         elif modo == "Semana":
             for deslocamento in range(7):
                 dia = inicio_semana + timedelta(days=deslocamento)
-                quantidade = len(reservas_no_dia(dia))
+                quantidade = len(reservas_filtradas_no_dia(dia))
                 controles.append(
                     ft.Container(
                         bgcolor=CARTAO,
@@ -737,7 +763,7 @@ def criar_painel(
                     )
                 )
         else:
-            reservas = reservas_no_dia(data)
+            reservas = reservas_filtradas_no_dia(data)
             if not carregando and not erro and reservas:
                 controles.extend(cartao_reserva(r) for r in reservas)
             elif not carregando and not erro:
@@ -755,11 +781,19 @@ def criar_painel(
                                     size=22, color="#A8A8A8",
                                 ),
                                 ft.Text(
-                                    "Nenhum agendamento neste dia.",
+                                    (
+                                        "Nenhum agendamento neste dia."
+                                        if agenda_estado["filtro_status"] == "todos"
+                                        else "Nenhum agendamento com este status."
+                                    ),
                                     size=15, weight=ft.FontWeight.BOLD,
                                 ),
                                 ft.Text(
-                                    "Toque em + para agendar seu primeiro atendimento.",
+                                    (
+                                        "Toque em + para criar um atendimento."
+                                        if agenda_estado["filtro_status"] == "todos"
+                                        else "Escolha outro status para ver os demais."
+                                    ),
                                     size=12, color=TEXTO_SECUNDARIO,
                                 ),
                             ],
