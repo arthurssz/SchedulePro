@@ -108,6 +108,76 @@ class TestFiltrosAgenda(unittest.TestCase):
         )
         self.assertEqual(registros[0]["status"], "canceled")
 
+    def test_pesquisa_por_cliente_ignora_acentos_maiusculas_e_espacos(self):
+        registros = [
+            {
+                "id": "1", "status": "confirmed",
+                "customer": {"name": "João da Silva"},
+                "professional": {"id": "p1"},
+                "service": {"id": "s1"},
+            },
+            {
+                "id": "2", "status": "scheduled",
+                "customer": {"name": "Maria Souza"},
+                "professional": {"id": "p1"},
+                "service": {"id": "s2"},
+            },
+            {"id": "3", "status": "canceled", "customer": None},
+        ]
+        self.assertEqual(
+            filtrar_agenda(registros, busca="  JOAO  "), [registros[0]],
+        )
+        self.assertEqual(
+            filtrar_agenda(registros, busca="silva"), [registros[0]],
+        )
+        self.assertEqual(
+            filtrar_agenda(registros, busca="souza"), [registros[1]],
+        )
+        self.assertEqual(
+            filtrar_agenda(registros, busca="inexistente"), [],
+        )
+        self.assertEqual(
+            filtrar_agenda(registros, busca="  "), registros,
+        )
+
+    def test_pesquisa_combina_com_status_profissional_e_servico(self):
+        registros = [
+            {
+                "id": "1", "status": "confirmed",
+                "customer": {"name": "Ana Paula"},
+                "professional": {"id": "p1"},
+                "service": {"id": "s1"},
+            },
+            {
+                "id": "2", "status": "scheduled",
+                "customer": {"name": "Ana Paula"},
+                "professional": {"id": "p2"},
+                "service": {"id": "s1"},
+            },
+        ]
+        antes = [dict(item) for item in registros]
+        self.assertEqual(
+            filtrar_agenda(
+                registros,
+                status="confirmed",
+                profissional_id="p1",
+                servico_id="s1",
+                busca="ANA",
+            ),
+            [registros[0]],
+        )
+        self.assertEqual(
+            filtrar_agenda(
+                registros,
+                status="confirmed",
+                profissional_id="p2",
+                servico_id="s1",
+                busca="ana",
+            ),
+            [],
+        )
+        self.assertEqual(registros, antes)
+
     def test_filtro_invalido_rejeitado(self):
         with self.assertRaises(ValueError):
             filtrar_status_agenda(self.registros, "indefinido")
