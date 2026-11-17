@@ -86,6 +86,8 @@ def criar_painel(
         "data": date.today(),
         "modo": "Dia",
         "busca": "",
+        "busca_rascunho": "",
+        "pesquisa_aberta": False,
         "filtro_status": "todos",
         "filtro_profissional": "todos",
         "filtro_servico": "todos",
@@ -113,6 +115,7 @@ def criar_painel(
             status=agenda_estado["filtro_status"],
             profissional_id=agenda_estado["filtro_profissional"],
             servico_id=agenda_estado["filtro_servico"],
+            busca=agenda_estado["busca"],
         )
 
     def reservas_filtradas_no_dia(dia):
@@ -556,8 +559,22 @@ def criar_painel(
         agenda_estado["modo"] = "Dia"
         renderizar(1)
 
+    def abrir_pesquisa_agenda(evento):
+        agenda_estado["pesquisa_aberta"] = True
+        renderizar(1)
+
     def registrar_busca(evento):
-        agenda_estado["busca"] = evento.control.value or ""
+        agenda_estado["busca_rascunho"] = evento.control.value or ""
+
+    def aplicar_busca_agenda(evento):
+        agenda_estado["busca"] = agenda_estado["busca_rascunho"].strip()
+        renderizar(1)
+
+    def limpar_busca_agenda(evento):
+        agenda_estado["busca"] = ""
+        agenda_estado["busca_rascunho"] = ""
+        agenda_estado["pesquisa_aberta"] = False
+        renderizar(1)
 
     def agendamento_indisponivel(evento):
         if dados_estabelecimento and dados_estabelecimento.get(
@@ -613,10 +630,7 @@ def criar_painel(
                     ft.IconButton(
                         icon=ft.Icons.SEARCH,
                         tooltip="Pesquisar",
-                        on_click=lambda _: mostrar_aviso(
-                            "A pesquisa será conectada aos agendamentos "
-                            "depois dos cadastros."
-                        ),
+                        on_click=abrir_pesquisa_agenda,
                     ),
                     ft.IconButton(
                         icon=ft.Icons.TUNE,
@@ -727,6 +741,45 @@ def criar_painel(
                 ],
             ),
         ]
+
+        if agenda_estado["pesquisa_aberta"]:
+            controles.append(
+                ft.Column(
+                    spacing=3,
+                    controls=[
+                        ft.Row(
+                            spacing=4,
+                            controls=[
+                                ft.TextField(
+                                    expand=True,
+                                    label="Buscar por nome do cliente",
+                                    hint_text="Ex.: Maria",
+                                    value=agenda_estado["busca_rascunho"],
+                                    on_change=registrar_busca,
+                                    on_submit=aplicar_busca_agenda,
+                                    text_size=14,
+                                    border_color="#3D3D3D",
+                                ),
+                                ft.IconButton(
+                                    icon=ft.Icons.SEARCH,
+                                    tooltip="Aplicar pesquisa",
+                                    on_click=aplicar_busca_agenda,
+                                ),
+                                ft.IconButton(
+                                    icon=ft.Icons.CLOSE,
+                                    tooltip="Limpar pesquisa",
+                                    on_click=limpar_busca_agenda,
+                                ),
+                            ],
+                        ),
+                        ft.Text(
+                            "Digite um nome e toque na lupa ou em buscar no teclado.",
+                            size=11,
+                            color=TEXTO_SECUNDARIO,
+                        ),
+                    ],
+                )
+            )
 
         carregando = agenda_consulta["carregando"]
         erro = agenda_consulta["erro"]
@@ -853,7 +906,9 @@ def criar_painel(
                                 ),
                                 ft.Text(
                                     (
-                                        "Nenhum agendamento neste dia."
+                                        "Nenhum agendamento encontrado para este cliente."
+                                        if agenda_estado["busca"]
+                                        else "Nenhum agendamento neste dia."
                                         if all(
                                             agenda_estado[chave] == "todos"
                                             for chave in (
@@ -868,7 +923,9 @@ def criar_painel(
                                 ),
                                 ft.Text(
                                     (
-                                        "Toque em + para criar um atendimento."
+                                        "Altere o nome pesquisado ou os filtros."
+                                        if agenda_estado["busca"]
+                                        else "Toque em + para criar um atendimento."
                                         if all(
                                             agenda_estado[chave] == "todos"
                                             for chave in (
@@ -2467,7 +2524,10 @@ def criar_painel(
         renderizar(1)
 
     def mostrar_painel():
-        # Não mostrar os profissionais/serviços de uma conta anterior.
+        # Não mostrar pesquisas/profissionais/serviços de uma conta anterior.
+        agenda_estado["busca"] = ""
+        agenda_estado["busca_rascunho"] = ""
+        agenda_estado["pesquisa_aberta"] = False
         agenda_estado["filtro_status"] = "todos"
         agenda_estado["filtro_profissional"] = "todos"
         agenda_estado["filtro_servico"] = "todos"
