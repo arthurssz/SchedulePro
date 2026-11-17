@@ -1,5 +1,7 @@
 """Filtros locais da Agenda sobre os registros já autorizados pelo Supabase."""
 
+import unicodedata
+
 FILTROS_STATUS = (
     ("todos", "Todos os status"),
     ("scheduled", "A confirmar"),
@@ -11,12 +13,20 @@ FILTROS_STATUS = (
 STATUS_VALIDOS = frozenset(chave for chave, _ in FILTROS_STATUS)
 
 
+def _normalizar_busca(texto):
+    """Comparação simples, sem distinção de acentos e maiúsculas."""
+    normalizado = unicodedata.normalize("NFD", str(texto or "").casefold())
+    return "".join(letra for letra in normalizado if not unicodedata.combining(letra)).strip()
+
+
 def filtrar_agenda(
     registros, status="todos", profissional_id="todos", servico_id="todos",
+    busca="",
 ):
     """Filtra sem alterar registros nem ocupar/liberar horários no servidor."""
     if status not in STATUS_VALIDOS:
         raise ValueError("Filtro de status inválido.")
+    termo = _normalizar_busca(busca)
     resultado = []
     for registro in registros:
         if status != "todos" and registro.get("status") != status:
@@ -30,6 +40,10 @@ def filtrar_agenda(
             continue
         if servico_id != "todos" and servico.get("id") != servico_id:
             continue
+        if termo:
+            cliente = (registro.get("customer") or {}).get("name") or ""
+            if termo not in _normalizar_busca(cliente):
+                continue
         resultado.append(registro)
     return resultado
 
