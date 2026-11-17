@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta, timezone
 import calendar
 import flet as ft
 
-from appointment_filters import FILTROS_STATUS, filtrar_status_agenda
+from appointment_filters import FILTROS_STATUS, filtrar_agenda, opcoes_agenda
 
 
 FUNDO = "#111111"
@@ -87,6 +87,10 @@ def criar_painel(
         "modo": "Dia",
         "busca": "",
         "filtro_status": "todos",
+        "filtro_profissional": "todos",
+        "filtro_servico": "todos",
+        "rotulos_profissionais": {},
+        "rotulos_servicos": {},
     }
 
     agenda_consulta = {
@@ -104,9 +108,11 @@ def criar_painel(
         ]
 
     def reservas_filtradas():
-        return filtrar_status_agenda(
+        return filtrar_agenda(
             agenda_consulta["registros"],
-            agenda_estado["filtro_status"],
+            status=agenda_estado["filtro_status"],
+            profissional_id=agenda_estado["filtro_profissional"],
+            servico_id=agenda_estado["filtro_servico"],
         )
 
     def reservas_filtradas_no_dia(dia):
@@ -121,6 +127,43 @@ def criar_painel(
             return
         agenda_estado["filtro_status"] = novo_status
         renderizar(1)
+
+    def selecionar_profissional_agenda(evento):
+        novo_id = evento.control.value or "todos"
+        if novo_id == agenda_estado["filtro_profissional"]:
+            return
+        agenda_estado["filtro_profissional"] = novo_id
+        renderizar(1)
+
+    def selecionar_servico_agenda(evento):
+        novo_id = evento.control.value or "todos"
+        if novo_id == agenda_estado["filtro_servico"]:
+            return
+        agenda_estado["filtro_servico"] = novo_id
+        renderizar(1)
+
+    def opcoes_filtro_agenda(tipo):
+        """Mantém a seleção mesmo quando o usuário muda de período."""
+        chave = (
+            "rotulos_profissionais"
+            if tipo == "professional" else "rotulos_servicos"
+        )
+        mapa = agenda_estado[chave]
+        mapa.update(opcoes_agenda(agenda_consulta["registros"], tipo))
+        titulo = (
+            "Todos os profissionais"
+            if tipo == "professional" else "Todos os serviços"
+        )
+        return [
+            ft.DropdownOption(key="todos", text=titulo),
+            *[
+                ft.DropdownOption(key=identificador, text=nome)
+                for identificador, nome in sorted(
+                    mapa.items(),
+                    key=lambda item: (item[1].casefold(), item[0]),
+                )
+            ],
+        ]
 
     def abrir_detalhes_reserva(registro):
         """Painel único para gerenciar o status real da reserva."""
@@ -579,8 +622,8 @@ def criar_painel(
                         icon=ft.Icons.TUNE,
                         tooltip="Filtros avançados",
                         on_click=lambda _: mostrar_aviso(
-                            "O filtro de status já está disponível abaixo. "
-                            "Filtros por profissional e serviço serão adicionados depois."
+                            "Use os filtros de status, profissional e serviço "
+                            "disponíveis abaixo."
                         ),
                     ),
                     ft.IconButton(
@@ -652,6 +695,34 @@ def criar_painel(
                         bgcolor=CARTAO,
                         border_color="#3D3D3D",
                         on_select=selecionar_status_agenda,
+                    ),
+                ],
+            ),
+            ft.Row(
+                spacing=12,
+                controls=[
+                    ft.Text("Profissional", size=13, color=TEXTO_SECUNDARIO),
+                    ft.Dropdown(
+                        expand=True,
+                        value=agenda_estado["filtro_profissional"],
+                        options=opcoes_filtro_agenda("professional"),
+                        bgcolor=CARTAO,
+                        border_color="#3D3D3D",
+                        on_select=selecionar_profissional_agenda,
+                    ),
+                ],
+            ),
+            ft.Row(
+                spacing=12,
+                controls=[
+                    ft.Text("Serviço", size=13, color=TEXTO_SECUNDARIO),
+                    ft.Dropdown(
+                        expand=True,
+                        value=agenda_estado["filtro_servico"],
+                        options=opcoes_filtro_agenda("service"),
+                        bgcolor=CARTAO,
+                        border_color="#3D3D3D",
+                        on_select=selecionar_servico_agenda,
                     ),
                 ],
             ),
@@ -783,16 +854,30 @@ def criar_painel(
                                 ft.Text(
                                     (
                                         "Nenhum agendamento neste dia."
-                                        if agenda_estado["filtro_status"] == "todos"
-                                        else "Nenhum agendamento com este status."
+                                        if all(
+                                            agenda_estado[chave] == "todos"
+                                            for chave in (
+                                                "filtro_status",
+                                                "filtro_profissional",
+                                                "filtro_servico",
+                                            )
+                                        )
+                                        else "Nenhum agendamento com estes filtros."
                                     ),
                                     size=15, weight=ft.FontWeight.BOLD,
                                 ),
                                 ft.Text(
                                     (
                                         "Toque em + para criar um atendimento."
-                                        if agenda_estado["filtro_status"] == "todos"
-                                        else "Escolha outro status para ver os demais."
+                                        if all(
+                                            agenda_estado[chave] == "todos"
+                                            for chave in (
+                                                "filtro_status",
+                                                "filtro_profissional",
+                                                "filtro_servico",
+                                            )
+                                        )
+                                        else "Altere os filtros para ver outros atendimentos."
                                     ),
                                     size=12, color=TEXTO_SECUNDARIO,
                                 ),
@@ -2382,6 +2467,12 @@ def criar_painel(
         renderizar(1)
 
     def mostrar_painel():
+        # Não mostrar os profissionais/serviços de uma conta anterior.
+        agenda_estado["filtro_status"] = "todos"
+        agenda_estado["filtro_profissional"] = "todos"
+        agenda_estado["filtro_servico"] = "todos"
+        agenda_estado["rotulos_profissionais"].clear()
+        agenda_estado["rotulos_servicos"].clear()
         agenda_consulta["sequencia"] += 1
         agenda_consulta["chave"] = None
         agenda_consulta["registros"] = []
