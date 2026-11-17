@@ -138,8 +138,8 @@ def listar_agendamentos(token, estabelecimento_id, inicio, fim):
         + "&local_date=gte." + dia_inicio.isoformat()
         + "&local_date=lte." + dia_fim.isoformat()
         + "&select=id,local_date,local_time,starts_at,ends_at,price_cents,status,notes,"
-        + "customer:customers(name),professional:professionals(name),"
-        + "service:services(name,duration_minutes)"
+        + "customer:customers(name),professional:professionals(id,name),"
+        + "service:services(id,name,duration_minutes)"
         + "&order=local_date.asc,local_time.asc&limit=500"
     )
     registros = _pedir(token, caminho)
